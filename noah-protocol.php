@@ -1,10 +1,11 @@
 <?php
 /**
  * Plugin Name: NOAH Protocol
- * Plugin URI:  https://noahprotocol.com
+ * Plugin URI:  https://ringomedia.com
  * Description: Membership subscriptions, fixed-cycle program billing, automatic member discounts, and content access control. Built for WooCommerce + Stripe for WooCommerce.
- * Version:     2.0.0
- * Author:      NOAH Protocol
+ * Version:     2.0.1
+ * Author:      RingoMedia
+ * Author URI:  https://ringomedia.com
  * Text Domain: noah-protocol
  * Domain Path: /languages
  * Requires at least: 6.0
@@ -15,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'NOAH_VERSION',     '2.0.0' );
+define( 'NOAH_VERSION',     '2.0.1' );
 define( 'NOAH_FILE',        __FILE__ );
 define( 'NOAH_PATH',        plugin_dir_path( __FILE__ ) );
 define( 'NOAH_URL',         plugin_dir_url( __FILE__ ) );

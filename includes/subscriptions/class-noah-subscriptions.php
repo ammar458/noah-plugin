@@ -1,0 +1,303 @@
+<?php
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Noah_Subscriptions
+ *
+ * Merges:
+ *   - v8's full product type registration, add-to-cart UI, cart meta display
+ *   - v8's product info block (duration, billing, total, member upsell)
+ *   - Our DB-backed program access creation on order completion
+ *   - Our billing cycle tracking (cycles_paid incremented per renewal)
+ */
+class Noah_Subscriptions {
+
+    private static ?Noah_Subscriptions $instance = null;
+
+    public static function instance(): Noah_Subscriptions {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'init', [ $this, 'register_product_class' ], 5 );
+        add_filter( 'product_type_selector',          [ $this, 'add_product_type'     ] );
+        add_filter( 'woocommerce_product_class',      [ $this, 'set_product_class'    ], 10, 2 );
+        add_filter( 'woocommerce_product_type_query', [ $this, 'validate_product_type'], 10, 2 );
+        add_filter( 'woocommerce_payment_complete_order_status', [ $this, 'autocomplete_virtual_orders' ], 10, 3 );
+        add_action( 'woocommerce_noah_subscription_add_to_cart', [ $this, 'render_add_to_cart' ] );
+
+        add_filter( 'woocommerce_get_item_data',
+                    [ $this, 'display_cart_item_meta' ], 10, 2 );
+        add_action( 'woocommerce_checkout_create_order_line_item',
+                    [ $this, 'save_order_item_meta'   ], 10, 4 );
+        add_filter( 'woocommerce_order_item_display_meta_key',
+                    [ $this, 'format_meta_key'        ] );
+
+        // Grant program access when order completes
+        add_action( 'woocommerce_order_status_completed', [ $this, 'maybe_start_program_access' ] );
+
+        // Cron: revoke expired program accesses
+        add_action( 'noah_daily_cleanup', [ $this, 'revoke_expired_program_accesses' ] );
+    }
+    public function autocomplete_virtual_orders( string $status, int $order_id, WC_Order $order ): string {
+    foreach ( $order->get_items() as $item ) {
+        $product = wc_get_product( $item->get_product_id() );
+        if ( $product && $product->is_virtual() ) {
+            return 'completed';
+        }
+    }
+    return $status;
+}
+    // ---------------------------------------------------------------
+    // Product type registration
+    // ---------------------------------------------------------------
+
+    public function register_product_class(): void {
+        if ( ! class_exists( 'WC_Product' ) ) {
+            return;
+        }
+        require_once NOAH_PATH . 'product-types/class-wc-product-noah-subscription.php';
+    }
+
+    public function add_product_type( array $types ): array {
+        $types['noah_subscription'] = __( 'NOAH Subscription', 'noah-protocol' );
+        return $types;
+    }
+
+    public function set_product_class( string $classname, string $product_type ): string {
+        return 'noah_subscription' === $product_type ? 'WC_Product_Noah_Subscription' : $classname;
+    }
+
+    public function validate_product_type( bool $found, string $product_type ): bool {
+        return 'noah_subscription' === $product_type ? true : $found;
+    }
+
+    // ---------------------------------------------------------------
+    // Add-to-cart on product page
+    // ---------------------------------------------------------------
+
+    public function render_add_to_cart(): void {
+        global $product;
+        if ( ! $product || ! $product->is_purchasable() ) {
+            return;
+        }
+        $this->render_program_info_block( $product );
+        wc_get_template(
+            'single-product/add-to-cart/noah_subscription.php',
+            [],
+            '',
+            NOAH_PATH . 'woocommerce/'
+        );
+    }
+
+    private function render_program_info_block( WC_Product $product ): void {
+        $product_id      = $product->get_id();
+        $cycles          = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
+        $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
+        $member_price    = (float) get_post_meta( $product_id, '_noah_member_price',    true );
+        $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
+        $is_member       = Noah_Membership::is_member( get_current_user_id() );
+        $active_price    = ( $is_member && $member_price > 0 ) ? $member_price : $nonmember_price;
+        $total_price     = $cycles > 0 ? $active_price * $cycles : $active_price;
+        $weeks           = max( $cycles, 0 );
+        $days            = $weeks * 7;
+        ?>
+        <div class="noah-program-info">
+
+            <?php if ( $cycles > 0 ) : ?>
+            <div class="noah-program-meta">
+
+                <div class="noah-meta-item">
+                    <span class="noah-meta-icon" aria-hidden="true">&#9200;</span>
+                    <div>
+                        <span class="noah-meta-label"><?php esc_html_e( 'Duration', 'noah-protocol' ); ?></span>
+                        <span class="noah-meta-value">
+                            <?php echo esc_html( sprintf(
+                                _n( '%1$d week (%2$d days)', '%1$d weeks (%2$d days)', $weeks, 'noah-protocol' ),
+                                $weeks, $days
+                            ) ); ?>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="noah-meta-item">
+                    <span class="noah-meta-icon" aria-hidden="true">&#8635;</span>
+                    <div>
+                        <span class="noah-meta-label"><?php esc_html_e( 'Billing', 'noah-protocol' ); ?></span>
+                        <span class="noah-meta-value">
+                            <?php echo esc_html( sprintf(
+                                _n( '%d weekly payment', '%d weekly payments', $cycles, 'noah-protocol' ),
+                                $cycles
+                            ) ); ?>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="noah-meta-item">
+                    <span class="noah-meta-icon" aria-hidden="true">&#128179;</span>
+                    <div>
+                        <span class="noah-meta-label"><?php esc_html_e( 'Program total', 'noah-protocol' ); ?></span>
+                        <span class="noah-meta-value noah-meta-total"><?php echo wp_kses_post( wc_price( $total_price ) ); ?></span>
+                    </div>
+                </div>
+
+            </div>
+            <?php endif; ?>
+
+            <?php if ( ! $is_member && ! $is_membership && $member_price > 0 && $member_price < $nonmember_price ) : ?>
+            <div class="noah-member-upsell">
+                <span class="noah-upsell-icon" aria-hidden="true">&#127807;</span>
+                <span>
+                    <?php
+                    $savings = ( $nonmember_price - $member_price ) * max( $cycles, 1 );
+                    printf(
+                        wp_kses(
+                            /* translators: 1: member price per week, 2: total savings */
+                            __( '<strong>Are you a member?</strong> You pay %1$s/week and save %2$s on this program.', 'noah-protocol' ),
+                            [ 'strong' => [] ]
+                        ),
+                        wp_kses_post( wc_price( $member_price ) ),
+                        wp_kses_post( wc_price( $savings ) )
+                    );
+                    ?>
+                    <a href="<?php echo esc_url( 'https://noahprotocol.com/pricing/#membership' ); ?>" class="noah-upsell-link">
+                        <?php esc_html_e( 'See membership plan', 'noah-protocol' ); ?>
+                    </a>
+                </span>
+            </div>
+            <?php endif; ?>
+
+            <?php if ( $cycles > 0 ) : ?>
+            <p class="noah-auto-cancel-note">
+                <?php esc_html_e( 'Subscription cancels automatically when the program ends. No action required.', 'noah-protocol' ); ?>
+            </p>
+            <?php endif; ?>
+
+        </div>
+        <?php
+    }
+
+    // ---------------------------------------------------------------
+    // Cart and order meta
+    // ---------------------------------------------------------------
+
+    public function display_cart_item_meta( array $item_data, array $cart_item ): array {
+        $product_id = $cart_item['product_id'];
+        $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
+
+        if ( $cycles > 0 ) {
+            $item_data[] = [
+                'key'   => __( 'Billing', 'noah-protocol' ),
+                'value' => sprintf(
+                    _n( 'Weekly for %d week', 'Weekly for %d weeks', $cycles, 'noah-protocol' ),
+                    $cycles
+                ),
+            ];
+        } elseif ( 0 === $cycles && 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
+            $item_data[] = [
+                'key'   => __( 'Billing', 'noah-protocol' ),
+                'value' => __( 'Weekly — cancel any time', 'noah-protocol' ),
+            ];
+        }
+        return $item_data;
+    }
+
+    public function save_order_item_meta( WC_Order_Item_Product $item, string $cart_item_key, array $values, WC_Order $order ): void {
+        $cycles = (int) get_post_meta( $values['product_id'], '_noah_billing_cycles', true );
+        if ( $cycles > 0 ) {
+            $item->add_meta_data( '_noah_billing_cycles', $cycles, true );
+        }
+    }
+
+    public function format_meta_key( string $key ): string {
+        return '_noah_billing_cycles' === $key ? __( 'Billing cycles', 'noah-protocol' ) : $key;
+    }
+
+    // ---------------------------------------------------------------
+    // Program access on order completion
+    // ---------------------------------------------------------------
+
+    public function maybe_start_program_access( int $order_id ): void {
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+        $user_id = (int) $order->get_customer_id();
+        if ( ! $user_id ) {
+            return;
+        }
+
+        foreach ( $order->get_items() as $item ) {
+            $product_id = (int) $item->get_product_id();
+            $product    = wc_get_product( $product_id );
+            if ( ! $product || $product->get_type() !== 'noah_subscription' ) {
+                continue;
+            }
+            // Skip the membership plan itself — handled by Noah_Membership
+            if ( 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
+                continue;
+            }
+
+            $cycles = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+            $period = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+            $expires_at = self::calculate_expiry( $cycles, $period );
+
+            Noah_DB::upsert_program_access( $user_id, $product_id, [
+                'order_id'       => $order_id,
+                'status'         => 'active',
+                'billing_cycles' => $cycles,
+                'cycles_paid'    => 1,
+                'started_at'     => current_time( 'mysql' ),
+                'expires_at'     => $expires_at,
+            ] );
+
+            Noah_DB::log_event( $user_id, $product_id, 'program_access_granted', "Order #{$order_id} | {$cycles} {$period}(s)" );
+            do_action( 'noah_program_subscription_started', $user_id, $product_id, $order_id );
+        }
+    }
+
+    public function record_renewal( int $user_id, int $product_id ): void {
+        $access = Noah_DB::get_program_access( $user_id, $product_id );
+        if ( ! $access ) {
+            return;
+        }
+        $cycles_paid    = (int) $access->cycles_paid + 1;
+        $billing_cycles = (int) $access->billing_cycles;
+
+        $update = [ 'cycles_paid' => $cycles_paid ];
+        if ( $billing_cycles > 0 && $cycles_paid >= $billing_cycles ) {
+            $update['status'] = 'completing';
+            do_action( 'noah_program_final_cycle_paid', $user_id, $product_id );
+        }
+
+        Noah_DB::upsert_program_access( $user_id, $product_id, $update );
+        Noah_DB::log_event( $user_id, $product_id, 'program_renewal', "Cycle {$cycles_paid}/{$billing_cycles}" );
+    }
+
+    public static function calculate_expiry( int $cycles, string $period ): string {
+        $interval = $period === 'week' ? "{$cycles} weeks" : "{$cycles} months";
+        return gmdate( 'Y-m-d H:i:s', strtotime( "+{$interval}", time() ) );
+    }
+
+    // ---------------------------------------------------------------
+    // Cron: clean up expired accesses
+    // ---------------------------------------------------------------
+
+    public function revoke_expired_program_accesses(): void {
+        global $wpdb;
+        $rows = $wpdb->get_results(
+            "SELECT user_id, product_id FROM {$wpdb->prefix}noah_program_access
+             WHERE status IN ('active','completing')
+             AND expires_at IS NOT NULL AND expires_at < NOW()"
+        );
+        foreach ( $rows as $row ) {
+            Noah_Access_Revoke::instance()->revoke_program(
+                (int) $row->user_id, (int) $row->product_id, 'expired'
+            );
+        }
+    }
+
+}

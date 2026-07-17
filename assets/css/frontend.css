@@ -1,0 +1,197 @@
+/* NOAH Protocol — Frontend Styles */
+
+/* ── Program info block on product page ───────────────── */
+.noah-program-info {
+    margin: 20px 0;
+}
+
+.noah-program-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.noah-meta-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: #faf5f0;
+    border: 1px solid #e8ddd3;
+    border-radius: 8px;
+    padding: 10px 14px;
+    flex: 1;
+    min-width: 140px;
+}
+
+.noah-meta-icon { font-size: 18px; }
+
+.noah-meta-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #999;
+    margin-bottom: 2px;
+}
+
+.noah-meta-value {
+    display: block;
+    font-weight: 600;
+    color: #3b2a1a;
+}
+
+.noah-meta-total { color: #7b5c3a; font-size: 1.1em; }
+
+.noah-member-upsell {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #fffbf5;
+    border: 1px solid #c99a6b;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.noah-upsell-icon { font-size: 20px; flex-shrink: 0; }
+
+.noah-upsell-link {
+    display: inline-block;
+    margin-left: 8px;
+    color: #7b5c3a;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.noah-auto-cancel-note {
+    font-size: 12px;
+    color: #888;
+    margin: 8px 0 0;
+}
+
+/* ── Dual pricing badges ──────────────────────────────── */
+.noah-member-price {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.noah-price-badge {
+    display: inline-block;
+    background: #7b5c3a;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.noah-member-teaser {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 13px;
+    color: #7b5c3a;
+    font-weight: 500;
+}
+
+/* ── Cart and checkout notice ─────────────────────────── */
+.woocommerce-info.noah-checkout-notice,
+.woocommerce-message.noah-checkout-notice {
+    border-top-color: #c99a6b !important;
+    background: #fdf8f3;
+    color: #7b5c3a;
+}
+
+/* ── Member dashboard (My Account) ───────────────────── */
+.noah-member-dashboard { max-width: 680px; }
+
+.noah-benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px;
+}
+
+.noah-benefits-list li {
+    padding: 4px 0;
+    padding-left: 20px;
+    position: relative;
+    color: #444;
+}
+
+.noah-benefits-list li::before {
+    content: "\2713";
+    position: absolute;
+    left: 0;
+    color: #c99a6b;
+    font-weight: 700;
+}
+
+/* ── Status badges ────────────────────────────────────── */
+.noah-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.noah-badge--active    { background: #d4edda; color: #155724; }
+.noah-badge--cancelled,
+.noah-badge--revoked   { background: #f8d7da; color: #721c24; }
+.noah-badge--expired   { background: #fff3cd; color: #856404; }
+.noah-badge--completing { background: #cce5ff; color: #004085; }
+
+/* ── Program table ────────────────────────────────────── */
+.noah-program-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.noah-program-table th {
+    background: #f5ede3;
+    color: #7b5c3a;
+    border-bottom: 2px solid #e0d6cc;
+    padding: 8px 10px;
+    text-align: left;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.noah-program-table td { padding: 8px 10px; border-bottom: 1px solid #f0e8de; }
+.noah-program-table tr:last-child td { border-bottom: none; }
+
+/* ── Access blocked ───────────────────────────────────── */
+.noah-access-blocked {
+    border: 2px dashed #c99a6b;
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    background: #fdf8f3;
+    margin: 20px 0;
+}
+
+.noah-access-blocked h3 { color: #7b5c3a; margin-top: 0; }
+
+/* ── Admin status badges ──────────────────────────────── */
+.noah-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.noah-status--active    { background: #d4edda; color: #155724; }
+.noah-status--cancelled,
+.noah-status--revoked   { background: #f8d7da; color: #721c24; }
+.noah-status--expired   { background: #fff3cd; color: #856404; }

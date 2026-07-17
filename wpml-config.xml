@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wpml-config>
+    <admin-texts>
+        <key name="noah_member_badge_text" />
+        <key name="noah_nonmember_teaser_text" />
+    </admin-texts>
+</wpml-config>

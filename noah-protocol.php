@@ -3,7 +3,7 @@
  * Plugin Name: NOAH Protocol
  * Plugin URI:  https://ringomedia.com
  * Description: Membership subscriptions, fixed-cycle program billing, automatic member discounts, and content access control. Built for WooCommerce + Stripe for WooCommerce.
- * Version:     2.0.1
+ * Version:     2.1.0
  * Author:      RingoMedia
  * Author URI:  https://ringomedia.com
  * Text Domain: noah-protocol
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'NOAH_VERSION',     '2.0.1' );
+define( 'NOAH_VERSION',     '2.1.0' );
 define( 'NOAH_FILE',        __FILE__ );
 define( 'NOAH_PATH',        plugin_dir_path( __FILE__ ) );
 define( 'NOAH_URL',         plugin_dir_url( __FILE__ ) );
@@ -97,6 +97,7 @@ function noah_boot(): void {
     require_once NOAH_PATH . 'includes/pricing/class-noah-pricing.php';
     require_once NOAH_PATH . 'includes/stripe/class-noah-stripe-webhooks.php';
     require_once NOAH_PATH . 'includes/stripe/class-noah-stripe-recurring.php';
+    require_once NOAH_PATH . 'includes/stripe/class-noah-stripe-customer-sync.php';
     require_once NOAH_PATH . 'includes/access/class-noah-access-manager.php';
     require_once NOAH_PATH . 'includes/access/class-noah-access-program.php';
     require_once NOAH_PATH . 'includes/access/class-noah-access-revoke.php';
@@ -113,6 +114,7 @@ function noah_boot(): void {
     Noah_Pricing::instance();
     Noah_Stripe_Webhooks::instance();
     Noah_Stripe_Recurring::instance();
+    Noah_Stripe_Customer_Sync::instance();
     Noah_Access_Manager::instance();
     Noah_Access_Program::instance();
     Noah_Access_Revoke::instance();

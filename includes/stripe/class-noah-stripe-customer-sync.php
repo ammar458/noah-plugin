@@ -7,7 +7,8 @@ defined( 'ABSPATH' ) || exit;
  * On order completion, guarantees the purchasing user has a Stripe Customer
  * object (created via the Stripe API if one doesn't already exist) and tags
  * that customer's metadata with what they bought, using the Stripe Price ID
- * mapped on each product's edit screen ("Stripe Price ID" field).
+ * mapped on each product's edit screen ("Stripe Price ID (Member)" /
+ * "Stripe Price ID (Non-Member)" fields — whichever applies to the purchaser).
  *
  * Does not create Stripe invoices, charges, or subscriptions — actual
  * payment collection stays with the Stripe for WooCommerce gateway. This
@@ -18,9 +19,10 @@ class Noah_Stripe_Customer_Sync {
 
     private static ?Noah_Stripe_Customer_Sync $instance = null;
 
-    const STRIPE_CUSTOMER_META = '_stripe_customer_id';
-    const SYNCED_ORDER_META    = '_noah_stripe_synced';
-    const PRICE_ID_META        = '_noah_stripe_price_id';
+    const STRIPE_CUSTOMER_META    = '_stripe_customer_id';
+    const SYNCED_ORDER_META       = '_noah_stripe_synced';
+    const MEMBER_PRICE_ID_META    = '_noah_stripe_price_id_member';
+    const NONMEMBER_PRICE_ID_META = '_noah_stripe_price_id_nonmember';
 
     public static function instance(): Noah_Stripe_Customer_Sync {
         if ( null === self::$instance ) {
@@ -46,18 +48,30 @@ class Noah_Stripe_Customer_Sync {
 
     public function render_price_id_field(): void {
         global $post;
-        $price_id = get_post_meta( $post->ID, self::PRICE_ID_META, true );
+        $member_price_id    = get_post_meta( $post->ID, self::MEMBER_PRICE_ID_META,    true );
+        $nonmember_price_id = get_post_meta( $post->ID, self::NONMEMBER_PRICE_ID_META, true );
         ?>
         <div class="options_group">
             <p class="form-field">
-                <label for="_noah_stripe_price_id">
-                    <?php esc_html_e( 'Stripe Price ID', 'noah-protocol' ); ?>
+                <label for="_noah_stripe_price_id_nonmember">
+                    <?php esc_html_e( 'Stripe Price ID (Non-Member)', 'noah-protocol' ); ?>
                 </label>
                 <input type="text" class="short"
-                       id="_noah_stripe_price_id" name="_noah_stripe_price_id"
-                       value="<?php echo esc_attr( $price_id ); ?>" placeholder="price_...">
+                       id="_noah_stripe_price_id_nonmember" name="_noah_stripe_price_id_nonmember"
+                       value="<?php echo esc_attr( $nonmember_price_id ); ?>" placeholder="price_...">
                 <span class="description">
-                    <?php esc_html_e( 'ID of the matching Price on the Stripe product you already created. Used to tag the Stripe Customer with what they purchased.', 'noah-protocol' ); ?>
+                    <?php esc_html_e( 'Stripe Price used for customers without an active membership.', 'noah-protocol' ); ?>
+                </span>
+            </p>
+            <p class="form-field">
+                <label for="_noah_stripe_price_id_member">
+                    <?php esc_html_e( 'Stripe Price ID (Member)', 'noah-protocol' ); ?>
+                </label>
+                <input type="text" class="short"
+                       id="_noah_stripe_price_id_member" name="_noah_stripe_price_id_member"
+                       value="<?php echo esc_attr( $member_price_id ); ?>" placeholder="price_...">
+                <span class="description">
+                    <?php esc_html_e( 'Stripe Price used for active members. Used to tag the Stripe Customer with what they purchased.', 'noah-protocol' ); ?>
                 </span>
             </p>
         </div>
@@ -65,14 +79,22 @@ class Noah_Stripe_Customer_Sync {
     }
 
     public function save_price_id_field( int $post_id ): void {
-        if ( ! isset( $_POST['_noah_stripe_price_id'] ) ) {
-            return;
+        if ( isset( $_POST['_noah_stripe_price_id_nonmember'] ) ) {
+            $nonmember_price_id = sanitize_text_field( wp_unslash( $_POST['_noah_stripe_price_id_nonmember'] ) );
+            if ( '' !== $nonmember_price_id ) {
+                update_post_meta( $post_id, self::NONMEMBER_PRICE_ID_META, $nonmember_price_id );
+            } else {
+                delete_post_meta( $post_id, self::NONMEMBER_PRICE_ID_META );
+            }
         }
-        $price_id = sanitize_text_field( wp_unslash( $_POST['_noah_stripe_price_id'] ) );
-        if ( '' !== $price_id ) {
-            update_post_meta( $post_id, self::PRICE_ID_META, $price_id );
-        } else {
-            delete_post_meta( $post_id, self::PRICE_ID_META );
+
+        if ( isset( $_POST['_noah_stripe_price_id_member'] ) ) {
+            $member_price_id = sanitize_text_field( wp_unslash( $_POST['_noah_stripe_price_id_member'] ) );
+            if ( '' !== $member_price_id ) {
+                update_post_meta( $post_id, self::MEMBER_PRICE_ID_META, $member_price_id );
+            } else {
+                delete_post_meta( $post_id, self::MEMBER_PRICE_ID_META );
+            }
         }
     }
 
@@ -128,15 +150,18 @@ class Noah_Stripe_Customer_Sync {
     }
 
     private function tag_customer_with_purchase( object $stripe, string $customer_id, WC_Order $order ): void {
-        $names     = [];
-        $price_ids = [];
+        $names         = [];
+        $price_ids     = [];
         $is_membership = false;
+        $is_member     = Noah_Membership::is_member( (int) $order->get_customer_id() );
 
         foreach ( $order->get_items() as $item ) {
             $product_id = $item->get_product_id();
             $names[]    = $item->get_name();
 
-            $price_id = get_post_meta( $product_id, self::PRICE_ID_META, true );
+            $price_id = $is_member
+                ? get_post_meta( $product_id, self::MEMBER_PRICE_ID_META, true )
+                : get_post_meta( $product_id, self::NONMEMBER_PRICE_ID_META, true );
             if ( $price_id ) {
                 $price_ids[] = $price_id;
             }

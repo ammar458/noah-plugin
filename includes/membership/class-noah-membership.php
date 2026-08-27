@@ -77,7 +77,7 @@ class Noah_Membership {
 
         update_user_meta( $user_id, '_noah_member_since', current_time( 'mysql' ) );
         Noah_DB::log_event( $user_id, null, 'membership_granted', "Order #{$order_id}" );
-        do_action( 'noah_membership_granted', $user_id );
+        do_action( 'noah_membership_granted', $user_id, $order_id );
     }
 
     public function revoke( int $user_id, string $reason = '' ): void {

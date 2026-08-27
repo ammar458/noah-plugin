@@ -32,7 +32,7 @@ add_action( 'admin_head', function () {
     ?>
     <style>
     #woocommerce-product-data ul.wc-tabs li.general_options { display: block !important; }
-    .noah-subscription-only, .simple-products-only { display: none; }
+    .noah-subscription-only { display: none; }
     </style>
     <script type="text/javascript">
     jQuery(document).ready(function($) {
@@ -46,14 +46,10 @@ add_action( 'admin_head', function () {
                 $('._regular_price_field, ._sale_price_field, .sale_price_dates_fields').hide();
                 $('.noah-subscription-only').show();
                 $('.noah-subscription-only input').prop('disabled', false);
-                $('.simple-products-only').hide();
-                $('.simple-products-only input').prop('disabled', true);
             } else {
                 $('._regular_price_field, ._sale_price_field').show();
                 $('.noah-subscription-only').hide();
                 $('.noah-subscription-only input').prop('disabled', true);
-                $('.simple-products-only').show();
-                $('.simple-products-only input').prop('disabled', false);
             }
         }
 

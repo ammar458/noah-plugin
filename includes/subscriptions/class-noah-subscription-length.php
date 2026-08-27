@@ -28,10 +28,11 @@ class Noah_Subscription_Length {
         global $post;
         $pid             = $post->ID;
         $nonmember_price = get_post_meta( $pid, '_noah_nonmember_price',   true );
-        $member_price    = get_post_meta( $pid, '_noah_member_price',      true );
         $cycles          = get_post_meta( $pid, '_noah_billing_cycles',    true );
         $period          = get_post_meta( $pid, '_noah_billing_period',    true ) ?: 'week';
         $is_membership   = get_post_meta( $pid, '_noah_is_membership_plan', true );
+        $stripe_price_id = get_post_meta( $pid, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
+        $discount_percent = Noah_Discount::get_percent();
 
         if ( '' === $nonmember_price ) {
             $regular = get_post_meta( $pid, '_regular_price', true );
@@ -50,17 +51,28 @@ class Noah_Subscription_Length {
                 <input type="number" min="0" step="0.01" class="short"
                        id="_noah_nonmember_price" name="_noah_nonmember_price"
                        value="<?php echo esc_attr( $nonmember_price ); ?>" placeholder="0.00">
-                <span class="description"><?php esc_html_e( 'Price for customers without an active membership.', 'noah-protocol' ); ?></span>
+                <span class="description">
+                    <?php esc_html_e( 'Price for customers without an active membership. The member price and the frontend total are both calculated automatically from this value.', 'noah-protocol' ); ?>
+                    <?php if ( is_numeric( $nonmember_price ) && $nonmember_price > 0 ) : ?>
+                        <br><?php printf(
+                            /* translators: 1: member price, 2: discount percent */
+                            esc_html__( 'Member price: %1$s (%2$s%% off)', 'noah-protocol' ),
+                            wp_kses_post( wc_price( round( (float) $nonmember_price * ( 1 - $discount_percent / 100 ), 2 ) ) ),
+                            esc_html( $discount_percent )
+                        ); ?>
+                    <?php endif; ?>
+                </span>
             </p>
 
             <p class="form-field">
-                <label for="_noah_member_price">
-                    <strong><?php esc_html_e( 'Member Price (per billing period)', 'noah-protocol' ); ?></strong>
+                <label for="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>">
+                    <?php esc_html_e( 'Stripe Price ID (recurring)', 'noah-protocol' ); ?>
                 </label>
-                <input type="number" min="0" step="0.01" class="short"
-                       id="_noah_member_price" name="_noah_member_price"
-                       value="<?php echo esc_attr( $member_price ); ?>" placeholder="0.00">
-                <span class="description"><?php esc_html_e( 'Discounted price for active members.', 'noah-protocol' ); ?></span>
+                <input type="text" class="short"
+                       id="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
+                       name="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
+                       value="<?php echo esc_attr( $stripe_price_id ); ?>" placeholder="price_...">
+                <span class="description"><?php esc_html_e( 'The Stripe recurring Price this product bills weekly/monthly. Eligible members get this price with the discount coupon attached, rather than a separate Stripe Price.', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -93,18 +105,6 @@ class Noah_Subscription_Length {
             </p>
 
         </div>
-
-        <div class="options_group simple-products-only">
-            <p class="form-field">
-                <label for="_noah_member_price_simple">
-                    <strong><?php esc_html_e( 'NOAH Member Price', 'noah-protocol' ); ?></strong>
-                </label>
-                <input type="number" min="0" step="0.01" class="short"
-                       id="_noah_member_price_simple" name="_noah_member_price_simple"
-                       value="<?php echo esc_attr( $member_price ); ?>" placeholder="0.00">
-                <span class="description"><?php esc_html_e( 'Automatic price for members. Set the regular price above.', 'noah-protocol' ); ?></span>
-            </p>
-        </div>
         <?php
     }
 
@@ -112,9 +112,13 @@ class Noah_Subscription_Length {
         $product_type = $this->get_posted_product_type();
 
         if ( 'noah_subscription' === $product_type ) {
-            if ( isset( $_POST['_noah_member_price'] ) ) {
-                update_post_meta( $post_id, '_noah_member_price',
-                    wc_format_decimal( wc_clean( wp_unslash( $_POST['_noah_member_price'] ) ) ) );
+            if ( isset( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) ) {
+                $price_id = sanitize_text_field( wp_unslash( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) );
+                if ( '' !== $price_id ) {
+                    update_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, $price_id );
+                } else {
+                    delete_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META );
+                }
             }
             if ( isset( $_POST['_noah_billing_cycles'] ) ) {
                 update_post_meta( $post_id, '_noah_billing_cycles', absint( $_POST['_noah_billing_cycles'] ) );
@@ -131,11 +135,6 @@ class Noah_Subscription_Length {
                 update_option( 'noah_membership_product_id', $post_id );
             } elseif ( (int) get_option( 'noah_membership_product_id', 0 ) === $post_id ) {
                 delete_option( 'noah_membership_product_id' );
-            }
-        } elseif ( 'simple' === $product_type ) {
-            if ( isset( $_POST['_noah_member_price_simple'] ) ) {
-                update_post_meta( $post_id, '_noah_member_price',
-                    wc_format_decimal( wc_clean( wp_unslash( $_POST['_noah_member_price_simple'] ) ) ) );
             }
         }
     }

@@ -4,7 +4,8 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Noah_Pricing
  * Applies member prices in the cart and shows dual price HTML on product pages.
- * Taken from v8 — this is the better implementation.
+ * Member price is always derived (nonmember price minus Noah_Discount::get_percent()),
+ * never a manually-entered per-product value.
  */
 class Noah_Pricing {
 
@@ -23,34 +24,35 @@ class Noah_Pricing {
     }
 
     /**
-     * Override cart item prices for members using the stored member price meta.
-     * This covers products that have an explicit _noah_member_price set.
-     * The discount rules engine (Noah_Discount_Cart) handles category-level discounts separately.
+     * Override the cart price for noah_subscription (program/membership) items:
+     * eligible members pay the derived member rate, everyone else pays the
+     * non-member rate. Noah_Discount_Cart handles plain "simple" products.
      */
     public function apply_member_prices( WC_Cart $cart ): void {
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
             return;
         }
 
-        $is_member = Noah_Membership::is_member( get_current_user_id() );
+        $is_eligible = Noah_Discount::is_eligible( get_current_user_id() );
 
         foreach ( $cart->get_cart() as $cart_item ) {
             $product    = $cart_item['data'];
             $product_id = $cart_item['product_id'];
 
-            if ( $is_member ) {
-                $member_price = get_post_meta( $product_id, '_noah_member_price', true );
-                if ( '' !== $member_price && is_numeric( $member_price ) ) {
-                    $product->set_price( (float) $member_price );
-                }
-            } else {
-                if ( 'noah_subscription' === $product->get_type() ) {
-                    $nonmember_price = get_post_meta( $product_id, '_noah_nonmember_price', true );
-                    if ( '' !== $nonmember_price && is_numeric( $nonmember_price ) ) {
-                        $product->set_price( (float) $nonmember_price );
-                    }
-                }
+            if ( 'noah_subscription' !== $product->get_type() ) {
+                continue;
             }
+
+            $nonmember_price = get_post_meta( $product_id, '_noah_nonmember_price', true );
+            if ( '' === $nonmember_price || ! is_numeric( $nonmember_price ) ) {
+                continue;
+            }
+
+            $price = (float) $nonmember_price;
+            if ( $is_eligible ) {
+                $price = round( $price * ( 1 - Noah_Discount::get_percent() / 100 ), 2 );
+            }
+            $product->set_price( $price );
         }
     }
 
@@ -60,21 +62,22 @@ class Noah_Pricing {
      *   - Non-members: see regular price + a teaser "Members pay $X/week"
      */
     public function show_dual_price_html( string $price_html, WC_Product $product ): string {
-        if ( is_admin() ) {
+        if ( is_admin() || 'noah_subscription' !== $product->get_type() ) {
             return $price_html;
         }
 
-        $member_price = get_post_meta( $product->get_id(), '_noah_member_price', true );
-        if ( '' === $member_price || ! is_numeric( $member_price ) ) {
+        $nonmember_price = get_post_meta( $product->get_id(), '_noah_nonmember_price', true );
+        if ( '' === $nonmember_price || ! is_numeric( $nonmember_price ) ) {
             return $price_html;
         }
 
-        $is_member = Noah_Membership::is_member( get_current_user_id() );
+        $percent      = Noah_Discount::get_percent();
+        $member_price = round( (float) $nonmember_price * ( 1 - $percent / 100 ), 2 );
 
-        if ( $is_member ) {
+        if ( Noah_Discount::is_eligible( get_current_user_id() ) ) {
             $badge = get_option( 'noah_member_badge_text', __( 'Member price', 'noah-protocol' ) );
             return '<span class="noah-member-price">'
-                . wc_price( (float) $member_price )
+                . wc_price( $member_price )
                 . ' <span class="noah-price-badge">' . esc_html( $badge ) . '</span>'
                 . '</span>';
         }
@@ -83,7 +86,7 @@ class Noah_Pricing {
             'noah_nonmember_teaser_text',
             __( 'Members pay {price}/week', 'noah-protocol' )
         );
-        $teaser = str_replace( '{price}', wc_price( (float) $member_price ), $teaser_template );
+        $teaser = str_replace( '{price}', wc_price( $member_price ), $teaser_template );
 
         return $price_html . ' <span class="noah-member-teaser">' . $teaser . '</span>';
     }

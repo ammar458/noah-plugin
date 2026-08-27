@@ -30,7 +30,6 @@ class Noah_Admin {
 
         add_action( 'admin_post_noah_clear_stripe_log',      [ $this, 'clear_stripe_log'      ] );
         add_action( 'admin_post_noah_cancel_member',         [ $this, 'handle_cancel_member'  ] );
-        add_action( 'admin_post_noah_save_program_discount', [ $this, 'handle_save_discount'  ] );
     }
 
     // ---------------------------------------------------------------
@@ -100,6 +99,31 @@ class Noah_Admin {
             [
                 'type' => 'sectionend',
                 'id'   => 'noah_section_main',
+            ],
+            [
+                'title' => __( 'Pricing', 'noah-protocol' ),
+                'type'  => 'title',
+                'desc'  => __( 'Controls the member discount applied to programs and products. Eligibility requires an active membership AND an existing Stripe customer record.', 'noah-protocol' ),
+                'id'    => 'noah_section_pricing',
+            ],
+            [
+                'title'             => __( 'Member discount percent', 'noah-protocol' ),
+                'type'              => 'number',
+                'desc'              => __( 'Percent off for eligible members, e.g. 50 = 50% off.', 'noah-protocol' ),
+                'id'                => 'noah_member_discount_percent',
+                'default'           => '50',
+                'custom_attributes' => [ 'min' => '0', 'max' => '100', 'step' => '1' ],
+            ],
+            [
+                'title'   => __( 'Stripe Coupon ID', 'noah-protocol' ),
+                'type'    => 'text',
+                'desc'    => __( 'Coupon from the Stripe Dashboard attached to eligible members\' program Subscriptions.', 'noah-protocol' ),
+                'id'      => 'noah_stripe_coupon_id',
+                'default' => 'OwNgTFij',
+            ],
+            [
+                'type' => 'sectionend',
+                'id'   => 'noah_section_pricing',
             ],
             [
                 'title' => __( 'Stripe', 'noah-protocol' ),
@@ -201,11 +225,14 @@ class Noah_Admin {
 
             <div style="<?php echo $this->card_style( false ); ?>">
                 <h3 style="margin:0 0 8px;">&#128293; <?php esc_html_e( 'Step 5 — Note on Stripe Product Configuration', 'noah-protocol' ); ?></h3>
-                <p><?php esc_html_e( 'NOAH Protocol automatically sets cancel_at on each Stripe subscription when a program starts, based on the billing cycles you configure on the product. You do NOT need to manually set cycle limits in the Stripe Dashboard.', 'noah-protocol' ); ?></p>
+                <p><?php esc_html_e( 'NOAH Protocol creates a real recurring Stripe Subscription right after checkout (the first payment is collected normally; the Subscription then bills automatically from cycle 2 onward) and sets cancel_at based on the billing cycles you configure on the product. You do NOT need to manually create the recurring charge or cycle limit in the Stripe Dashboard.', 'noah-protocol' ); ?></p>
                 <ul style="list-style:disc;padding-left:20px;line-height:1.8;">
+                    <li><?php esc_html_e( 'Enable "Saved cards" in the Stripe for WooCommerce gateway settings — required so NOAH can charge the customer off-session for cycle 2+.', 'noah-protocol' ); ?></li>
+                    <li><?php esc_html_e( 'Create a recurring weekly/monthly Price in Stripe for each program and paste its Price ID into the product\'s "Stripe Price ID (recurring)" field.', 'noah-protocol' ); ?></li>
                     <li><?php esc_html_e( 'Set billing period on each product: Weekly or Monthly', 'noah-protocol' ); ?></li>
                     <li><?php esc_html_e( 'Set billing cycles on each product: e.g. 3 for a 3-week program', 'noah-protocol' ); ?></li>
                     <li><?php esc_html_e( 'Leave billing cycles at 0 on the Membership Plan (ongoing)', 'noah-protocol' ); ?></li>
+                    <li><?php esc_html_e( 'Set the member discount percent and Stripe Coupon ID under the Pricing section of the General tab.', 'noah-protocol' ); ?></li>
                 </ul>
             </div>
 
@@ -447,21 +474,6 @@ class Noah_Admin {
             Noah_Membership::instance()->revoke( $user_id, 'admin_manual_cancel' );
         }
         wp_safe_redirect( admin_url( 'admin.php?page=noah-members&cancelled=1' ) );
-        exit;
-    }
-
-    public function handle_save_discount(): void {
-        if ( ! current_user_can( 'manage_woocommerce' ) || ! check_admin_referer( 'noah_save_discount', 'noah_nonce' ) ) {
-            wp_die( esc_html__( 'Unauthorized', 'noah-protocol' ) );
-        }
-        $product_id = absint( $_POST['product_id'] ?? 0 );
-        $discount   = (float) ( $_POST['discount'] ?? 0 );
-        if ( $product_id ) {
-            $discount > 0
-                ? Noah_Discount_Rules::set_product_discount( $product_id, $discount )
-                : Noah_Discount_Rules::remove_product_discount( $product_id );
-        }
-        wp_safe_redirect( add_query_arg( [ 'page' => 'wc-settings', 'tab' => 'noah_protocol', 'noah_tab' => 'reports' ], admin_url( 'admin.php' ) ) );
         exit;
     }
 

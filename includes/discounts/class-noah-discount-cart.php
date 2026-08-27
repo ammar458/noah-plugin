@@ -3,10 +3,10 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Noah_Discount_Cart
- * Applies category/product-rule discounts automatically at cart.
- * Works alongside Noah_Pricing: Noah_Pricing handles explicit _noah_member_price,
- * this class handles any category-wide rules set in the admin.
- * No coupon code required.
+ * Applies the flat member discount (Noah_Discount) to one-time "simple" products
+ * in the cart. noah_subscription products are handled separately by Noah_Pricing
+ * (first cycle, charged through normal checkout) and Noah_Stripe_Recurring
+ * (the Stripe coupon on the recurring Subscription).
  */
 class Noah_Discount_Cart {
 
@@ -32,33 +32,33 @@ class Noah_Discount_Cart {
         }
 
         $user_id = get_current_user_id();
-        if ( ! $user_id || ! Noah_Membership::is_member( $user_id ) ) {
+        if ( ! Noah_Discount::is_eligible( $user_id ) ) {
+            return;
+        }
+
+        $percent = Noah_Discount::get_percent();
+        if ( $percent <= 0 ) {
             return;
         }
 
         foreach ( $cart->get_cart() as $cart_item ) {
-            $product    = $cart_item['data'];
-            $product_id = (int) $product->get_id();
+            $product = $cart_item['data'];
 
-            // Skip products that already have an explicit member price — Noah_Pricing handles those
-            $explicit_member_price = get_post_meta( $product_id, '_noah_member_price', true );
-            if ( '' !== $explicit_member_price && is_numeric( $explicit_member_price ) ) {
+            // noah_subscription products are priced by Noah_Pricing (first cycle)
+            // and discounted in Stripe via the coupon on the recurring Subscription.
+            if ( 'noah_subscription' === $product->get_type() ) {
                 continue;
             }
 
-            $percent = Noah_Discount::get_discount_percent( $user_id, $product_id );
-            if ( $percent > 0 ) {
-                $original = (float) $product->get_regular_price();
-                if ( $original > 0 ) {
-                    $product->set_price( round( $original * ( 1 - $percent / 100 ), 2 ) );
-                }
+            $original = (float) $product->get_regular_price();
+            if ( $original > 0 ) {
+                $product->set_price( round( $original * ( 1 - $percent / 100 ), 2 ) );
             }
         }
     }
 
     public function show_discount_notice(): void {
-        $user_id = get_current_user_id();
-        if ( ! $user_id || ! Noah_Membership::is_member( $user_id ) ) {
+        if ( ! Noah_Discount::is_eligible( get_current_user_id() ) ) {
             return;
         }
         wc_print_notice(

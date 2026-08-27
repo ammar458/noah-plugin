@@ -97,11 +97,14 @@ class Noah_Subscriptions {
         $product_id      = $product->get_id();
         $cycles          = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
         $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
-        $member_price    = (float) get_post_meta( $product_id, '_noah_member_price',    true );
+        $member_price    = round( $nonmember_price * ( 1 - Noah_Discount::get_percent() / 100 ), 2 );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
-        $is_member       = Noah_Membership::is_member( get_current_user_id() );
-        $active_price    = ( $is_member && $member_price > 0 ) ? $member_price : $nonmember_price;
-        $total_price     = $cycles > 0 ? $active_price * $cycles : $active_price;
+        $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
+        $active_price    = $is_eligible ? $member_price : $nonmember_price;
+        // Frontend total is always based on the non-member rate — an auto-calculated
+        // marketing figure (e.g. "$120 for 3 weeks"), independent of what any one
+        // buyer is actually charged.
+        $total_price     = $cycles > 0 ? $nonmember_price * $cycles : $nonmember_price;
         $weeks           = max( $cycles, 0 );
         $days            = $weeks * 7;
         ?>
@@ -147,7 +150,7 @@ class Noah_Subscriptions {
             </div>
             <?php endif; ?>
 
-            <?php if ( ! $is_member && ! $is_membership && $member_price > 0 && $member_price < $nonmember_price ) : ?>
+            <?php if ( ! $is_eligible && ! $is_membership && $member_price > 0 && $member_price < $nonmember_price ) : ?>
             <div class="noah-member-upsell">
                 <span class="noah-upsell-icon" aria-hidden="true">&#127807;</span>
                 <span>

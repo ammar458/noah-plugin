@@ -50,16 +50,6 @@ class Noah_Membership {
         add_filter( 'woocommerce_account_menu_items',                [ $this, 'add_account_tab'    ] );
         add_action( 'woocommerce_account_noah-membership_endpoint',  [ $this, 'render_account_tab' ] );
         add_action( 'init',                                          [ $this, 'register_endpoint'  ] );
-
-        // A non-member (including a just-cancelled ex-member) re-buying the
-        // Membership product can get blocked by WooCommerce's own "sold
-        // individually" cart check if an earlier failed/abandoned checkout
-        // left a stale draft/pending/failed order for that product on their
-        // account — that leftover order desyncs from the live cart at
-        // checkout time. Clear that stale order proactively so it can never
-        // block a legitimate re-purchase.
-        add_filter( 'woocommerce_add_to_cart_validation', [ $this, 'clear_stale_membership_orders_before_add' ], 5, 2 );
-        add_action( 'woocommerce_cart_loaded_from_session', [ $this, 'clear_stale_membership_orders_on_cart_load' ] );
     }
 
     // ---------------------------------------------------------------
@@ -107,7 +97,6 @@ class Noah_Membership {
 
         update_user_meta( $user_id, '_noah_member_revoked', current_time( 'mysql' ) );
         Noah_DB::log_event( $user_id, null, 'membership_revoked', $reason );
-        $this->purge_stale_membership_orders( $user_id );
         do_action( 'noah_membership_revoked', $user_id );
     }
 
@@ -273,65 +262,6 @@ class Noah_Membership {
         $user_id = get_current_user_id();
         $member  = Noah_DB::get_member( $user_id );
         include NOAH_PATH . 'templates/frontend/member-dashboard.php';
-    }
-
-    // ---------------------------------------------------------------
-    // Stale order cleanup (lets a non-member / cancelled ex-member re-buy)
-    // ---------------------------------------------------------------
-
-    public function clear_stale_membership_orders_before_add( bool $passed, int $product_id ): bool {
-        if ( $passed && 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
-            $user_id = get_current_user_id();
-            if ( $user_id && ! self::is_member( $user_id ) ) {
-                $this->purge_stale_membership_orders( $user_id );
-            }
-        }
-        return $passed;
-    }
-
-    public function clear_stale_membership_orders_on_cart_load( WC_Cart $cart ): void {
-        $user_id = get_current_user_id();
-        if ( ! $user_id || self::is_member( $user_id ) ) {
-            return;
-        }
-        foreach ( $cart->get_cart() as $cart_item ) {
-            if ( 'yes' === get_post_meta( $cart_item['product_id'], '_noah_is_membership_plan', true ) ) {
-                $this->purge_stale_membership_orders( $user_id );
-                return;
-            }
-        }
-    }
-
-    /**
-     * Deletes this user's own non-completed orders (draft/pending/on-hold/failed)
-     * that contain the Membership product. These never represent a real
-     * payment, but WooCommerce's "sold individually" checkout validation can
-     * still count them alongside the live cart and block a legitimate
-     * re-purchase — deleting them outright (not trashing) prevents them from
-     * ever accumulating again.
-     */
-    private function purge_stale_membership_orders( int $user_id ): void {
-        $product_id = (int) get_option( 'noah_membership_product_id', 0 );
-        if ( ! $product_id || ! $user_id || ! function_exists( 'wc_get_orders' ) ) {
-            return;
-        }
-
-        $orders = wc_get_orders( [
-            'customer_id' => $user_id,
-            'status'      => [ 'checkout-draft', 'pending', 'on-hold', 'failed' ],
-            'limit'       => -1,
-            'return'      => 'objects',
-        ] );
-
-        foreach ( $orders as $order ) {
-            foreach ( $order->get_items() as $item ) {
-                if ( (int) $item->get_product_id() === $product_id ) {
-                    $order->delete( true );
-                    Noah_DB::log_event( $user_id, $product_id, 'stale_membership_order_purged', "Order #{$order->get_id()} ({$order->get_status()})" );
-                    break;
-                }
-            }
-        }
     }
 
     // ---------------------------------------------------------------

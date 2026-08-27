@@ -82,12 +82,12 @@ class Noah_Stripe_Recurring {
             return null;
         }
 
-        $stripe = $this->get_stripe_client();
-        if ( ! $stripe ) {
+        if ( ! Noah_Stripe_Client::available() ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_client_unavailable', "Order #{$order_id} — WC_Stripe_API class not found" );
             return null;
         }
 
-        $payment_method = $this->resolve_payment_method( $stripe, (string) $customer_id, $order_id );
+        $payment_method = $this->resolve_payment_method( (string) $customer_id, $order_id );
         if ( ! $payment_method ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_error', 'No chargeable payment method found' );
             $this->notify_admin_subscription_failure( $user_id, $product_id, 'No saved payment method available for recurring billing.' );
@@ -114,7 +114,7 @@ class Noah_Stripe_Recurring {
         }
 
         try {
-            $subscription = $stripe->subscriptions->create( $params );
+            $subscription = Noah_Stripe_Client::post( $params, 'subscriptions' );
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_created', $subscription->id );
             return $subscription->id;
         } catch ( \Exception $e ) {
@@ -130,14 +130,14 @@ class Noah_Stripe_Recurring {
      * the customer just used), then the customer's stored default, then any
      * card already on file.
      */
-    private function resolve_payment_method( object $stripe, string $customer_id, int $order_id ): ?string {
+    private function resolve_payment_method( string $customer_id, int $order_id ): ?string {
         if ( $order_id ) {
             $order = wc_get_order( $order_id );
             if ( $order ) {
-                $intent_id = $order->get_meta( '_stripe_intent_id' ) ?: $order->get_meta( '_payment_intent_id' );
+                $intent_id = $order->get_meta( '_stripe_intent_id' );
                 if ( $intent_id ) {
                     try {
-                        $intent = $stripe->paymentIntents->retrieve( $intent_id );
+                        $intent = Noah_Stripe_Client::get( "payment_intents/{$intent_id}" );
                         if ( ! empty( $intent->payment_method ) ) {
                             return is_string( $intent->payment_method ) ? $intent->payment_method : $intent->payment_method->id;
                         }
@@ -149,7 +149,7 @@ class Noah_Stripe_Recurring {
         }
 
         try {
-            $customer = $stripe->customers->retrieve( $customer_id );
+            $customer = Noah_Stripe_Client::get( "customers/{$customer_id}" );
             if ( ! empty( $customer->invoice_settings->default_payment_method ) ) {
                 return $customer->invoice_settings->default_payment_method;
             }
@@ -158,7 +158,7 @@ class Noah_Stripe_Recurring {
         }
 
         try {
-            $methods = $stripe->paymentMethods->all( [ 'customer' => $customer_id, 'type' => 'card', 'limit' => 1 ] );
+            $methods = Noah_Stripe_Client::get( 'payment_methods', [ 'customer' => $customer_id, 'type' => 'card', 'limit' => 1 ] );
             if ( ! empty( $methods->data[0]->id ) ) {
                 return $methods->data[0]->id;
             }
@@ -202,15 +202,12 @@ class Noah_Stripe_Recurring {
         $interval  = $period === 'week' ? "{$cycles} weeks" : "{$cycles} months";
         $cancel_at = strtotime( "+{$interval}", time() );
 
-        $stripe = $this->get_stripe_client();
-        if ( ! $stripe ) {
+        if ( ! Noah_Stripe_Client::available() ) {
             return;
         }
 
         try {
-            $stripe->subscriptions->update( $access->stripe_sub_id, [
-                'cancel_at' => $cancel_at,
-            ] );
+            Noah_Stripe_Client::post( [ 'cancel_at' => $cancel_at ], "subscriptions/{$access->stripe_sub_id}" );
             Noah_DB::log_event( $user_id, $product_id, 'stripe_cancel_at_set',
                 "cancel_at: " . gmdate( 'Y-m-d H:i:s', $cancel_at ) );
         } catch ( \Exception $e ) {
@@ -228,26 +225,15 @@ class Noah_Stripe_Recurring {
             return;
         }
 
-        $stripe = $this->get_stripe_client();
-        if ( ! $stripe ) {
+        if ( ! Noah_Stripe_Client::available() ) {
             return;
         }
 
         try {
-            $stripe->subscriptions->cancel( $access->stripe_sub_id );
+            Noah_Stripe_Client::delete( "subscriptions/{$access->stripe_sub_id}" );
             Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancelled_final_cycle' );
         } catch ( \Exception $e ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancel_error', $e->getMessage() );
         }
-    }
-
-    /**
-     * Get the Stripe PHP client from the official WC Stripe plugin.
-     */
-    private function get_stripe_client(): ?object {
-        if ( class_exists( 'WC_Stripe_API' ) && method_exists( 'WC_Stripe_API', 'get_stripe_client' ) ) {
-            return WC_Stripe_API::get_stripe_client();
-        }
-        return null;
     }
 }

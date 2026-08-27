@@ -53,15 +53,15 @@ class Noah_Stripe_Customer_Sync {
             return; // Guest checkouts have no WP account to attach a Stripe customer to.
         }
 
-        $stripe = $this->get_stripe_client();
-        if ( ! $stripe ) {
+        if ( ! Noah_Stripe_Client::available() ) {
+            Noah_DB::log_event( $user_id, null, 'stripe_client_unavailable', "Order #{$order_id} — WC_Stripe_API class not found" );
             return;
         }
 
         try {
-            $customer_id = $this->ensure_stripe_customer( $stripe, $user_id, $order );
+            $customer_id = $this->ensure_stripe_customer( $user_id, $order );
             if ( $customer_id ) {
-                $this->tag_customer_with_purchase( $stripe, $customer_id, $order );
+                $this->tag_customer_with_purchase( $customer_id, $order );
                 $order->update_meta_data( self::SYNCED_ORDER_META, 'yes' );
                 $order->save();
             }
@@ -70,18 +70,18 @@ class Noah_Stripe_Customer_Sync {
         }
     }
 
-    private function ensure_stripe_customer( object $stripe, int $user_id, WC_Order $order ): string {
+    private function ensure_stripe_customer( int $user_id, WC_Order $order ): string {
         $existing = get_user_meta( $user_id, self::STRIPE_CUSTOMER_META, true );
         if ( ! empty( $existing ) ) {
             return $existing;
         }
 
         $name = trim( $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() );
-        $customer = $stripe->customers->create( [
+        $customer = Noah_Stripe_Client::post( [
             'email'    => $order->get_billing_email(),
             'name'     => $name ?: $order->get_formatted_billing_full_name(),
             'metadata' => [ 'noah_wp_user_id' => $user_id ],
-        ] );
+        ], 'customers' );
 
         update_user_meta( $user_id, self::STRIPE_CUSTOMER_META, $customer->id );
         Noah_DB::log_event( $user_id, null, 'stripe_customer_created', "Order #{$order->get_id()} | {$customer->id}" );
@@ -89,7 +89,7 @@ class Noah_Stripe_Customer_Sync {
         return $customer->id;
     }
 
-    private function tag_customer_with_purchase( object $stripe, string $customer_id, WC_Order $order ): void {
+    private function tag_customer_with_purchase( string $customer_id, WC_Order $order ): void {
         $names         = [];
         $price_ids     = [];
         $is_membership = false;
@@ -118,16 +118,6 @@ class Noah_Stripe_Customer_Sync {
             $metadata['noah_membership_status'] = 'active';
         }
 
-        $stripe->customers->update( $customer_id, [ 'metadata' => $metadata ] );
-    }
-
-    /**
-     * Get the Stripe PHP client from the official WC Stripe plugin.
-     */
-    private function get_stripe_client(): ?object {
-        if ( class_exists( 'WC_Stripe_API' ) && method_exists( 'WC_Stripe_API', 'get_stripe_client' ) ) {
-            return WC_Stripe_API::get_stripe_client();
-        }
-        return null;
+        Noah_Stripe_Client::post( [ 'metadata' => $metadata ], "customers/{$customer_id}" );
     }
 }

@@ -203,7 +203,7 @@ class Noah_Membership {
         $since     = get_user_meta( $user->ID, '_noah_member_since',   true );
         $revoked   = get_user_meta( $user->ID, '_noah_member_revoked', true );
         ?>
-        <h2><?php esc_html_e( 'NOAH Protocol Membership', 'noah-protocol' ); ?></h2>
+        <h2><?php esc_html_e( 'Noah Memberships and programs', 'noah-protocol' ); ?></h2>
         <table class="form-table">
             <tr>
                 <th><label for="noah_is_member"><?php esc_html_e( 'Active Member', 'noah-protocol' ); ?></label></th>

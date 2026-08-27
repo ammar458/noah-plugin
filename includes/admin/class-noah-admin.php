@@ -37,7 +37,7 @@ class Noah_Admin {
     // ---------------------------------------------------------------
 
     public function add_settings_tab( array $tabs ): array {
-        $tabs['noah_protocol'] = __( 'NOAH Protocol', 'noah-protocol' );
+        $tabs['noah_protocol'] = __( 'Noah Memberships and programs', 'noah-protocol' );
         return $tabs;
     }
 
@@ -79,7 +79,7 @@ class Noah_Admin {
     private function get_settings(): array {
         return [
             [
-                'title' => __( 'NOAH Protocol Settings', 'noah-protocol' ),
+                'title' => __( 'Noah Memberships and programs Settings', 'noah-protocol' ),
                 'type'  => 'title',
                 'id'    => 'noah_section_main',
             ],
@@ -149,7 +149,7 @@ class Noah_Admin {
             [
                 'title'   => __( 'Delete data on uninstall', 'noah-protocol' ),
                 'type'    => 'checkbox',
-                'desc'    => __( 'Remove all NOAH Protocol tables and options when the plugin is uninstalled.', 'noah-protocol' ),
+                'desc'    => __( 'Remove all Noah Memberships and programs tables and options when the plugin is uninstalled.', 'noah-protocol' ),
                 'id'      => 'noah_delete_data_on_uninstall',
                 'default' => 'no',
             ],
@@ -225,7 +225,7 @@ class Noah_Admin {
 
             <div style="<?php echo $this->card_style( false ); ?>">
                 <h3 style="margin:0 0 8px;">&#128293; <?php esc_html_e( 'Step 5 — Note on Stripe Product Configuration', 'noah-protocol' ); ?></h3>
-                <p><?php esc_html_e( 'NOAH Protocol creates a real recurring Stripe Subscription right after checkout (the first payment is collected normally; the Subscription then bills automatically from cycle 2 onward) and sets cancel_at based on the billing cycles you configure on the product. You do NOT need to manually create the recurring charge or cycle limit in the Stripe Dashboard.', 'noah-protocol' ); ?></p>
+                <p><?php esc_html_e( 'Noah Memberships and programs creates a real recurring Stripe Subscription right after checkout (the first payment is collected normally; the Subscription then bills automatically from cycle 2 onward) and sets cancel_at based on the billing cycles you configure on the product. You do NOT need to manually create the recurring charge or cycle limit in the Stripe Dashboard.', 'noah-protocol' ); ?></p>
                 <ul style="list-style:disc;padding-left:20px;line-height:1.8;">
                     <li><?php esc_html_e( 'Enable "Saved cards" in the Stripe for WooCommerce gateway settings — required so NOAH can charge the customer off-session for cycle 2+.', 'noah-protocol' ); ?></li>
                     <li><?php esc_html_e( 'Create a recurring weekly/monthly Price in Stripe for each program and paste its Price ID into the product\'s "Stripe Price ID (recurring)" field.', 'noah-protocol' ); ?></li>
@@ -385,7 +385,7 @@ class Noah_Admin {
         $pages = ceil( $total / $per_page );
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e( 'NOAH Protocol Members', 'noah-protocol' ); ?></h1>
+            <h1><?php esc_html_e( 'Noah Memberships and programs Members', 'noah-protocol' ); ?></h1>
             <?php if ( isset( $_GET['cancelled'] ) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e( 'Membership cancelled.', 'noah-protocol' ); ?></p></div>
             <?php endif; ?>

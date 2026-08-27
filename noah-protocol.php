@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: NOAH Protocol
+ * Plugin Name: Noah Memberships and programs
  * Plugin URI:  https://ringomedia.com
  * Description: Membership subscriptions, fixed-cycle program billing, automatic member discounts, and content access control. Built for WooCommerce + Stripe for WooCommerce.
  * Version:     3.0.4
@@ -75,7 +75,7 @@ function noah_boot(): void {
     if ( ! class_exists( 'WooCommerce' ) ) {
         add_action( 'admin_notices', function () {
             echo '<div class="notice notice-error"><p>'
-                . esc_html__( 'NOAH Protocol requires WooCommerce to be active.', 'noah-protocol' )
+                . esc_html__( 'Noah Memberships and programs requires WooCommerce to be active.', 'noah-protocol' )
                 . '</p></div>';
         } );
         return;

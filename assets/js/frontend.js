@@ -1,4 +1,4 @@
-/* NOAH Protocol — Frontend JS */
+/* Noah Memberships and programs — Frontend JS */
 ( function ( $ ) {
     'use strict';
     $( document ).ready( function () {

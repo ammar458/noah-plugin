@@ -65,7 +65,7 @@ class Noah_Access_Revoke {
             $user->user_email,
             sprintf( __( 'Your access to %s has ended', 'noah-protocol' ), $product->get_name() ),
             sprintf(
-                __( "Hi %1\$s,\n\nYour access to the %2\$s program has ended.\n\nIf you believe this is an error, please contact us.\n\nThe NOAH Protocol Team", 'noah-protocol' ),
+                __( "Hi %1\$s,\n\nYour access to the %2\$s program has ended.\n\nIf you believe this is an error, please contact us.\n\nThe Noah Memberships and programs Team", 'noah-protocol' ),
                 $user->display_name,
                 $product->get_name()
             ),

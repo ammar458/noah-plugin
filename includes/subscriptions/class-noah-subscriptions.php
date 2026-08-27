@@ -41,6 +41,24 @@ class Noah_Subscriptions {
 
         // Cron: revoke expired program accesses
         add_action( 'noah_daily_cleanup', [ $this, 'revoke_expired_program_accesses' ] );
+
+        // noah_subscription products are sold_individually (see
+        // WC_Product_Noah_Subscription). WooCommerce's own "already in cart"
+        // duplicate guard for sold_individually products can false-positive
+        // during checkout (something re-triggers WC_Cart::add_to_cart() for
+        // an item already present, e.g. the Stripe Optimized Checkout
+        // extension rebuilding checkout-session line items), throwing "You
+        // cannot add another X to your cart" even with a single legitimate
+        // item in the cart. Our own DB (Noah_DB program_access / members
+        // tables) is the real source of truth for "does this user already
+        // have this" — WooCommerce's cart-level guard is redundant here and
+        // only causes false blocks, so disable it for this product type.
+        add_filter( 'woocommerce_add_to_cart_sold_individually_found_in_cart', [ $this, 'allow_sold_individually_readd' ], 10, 2 );
+    }
+
+    public function allow_sold_individually_readd( bool $found_in_cart, int $product_id ): bool {
+        $product = wc_get_product( $product_id );
+        return ( $product && 'noah_subscription' === $product->get_type() ) ? false : $found_in_cart;
     }
     public function autocomplete_virtual_orders( string $status, int $order_id, WC_Order $order ): string {
     foreach ( $order->get_items() as $item ) {

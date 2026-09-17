@@ -21,8 +21,6 @@ class Noah_Stripe_Webhooks {
 
     private static ?Noah_Stripe_Webhooks $instance = null;
 
-    const STRIPE_CUSTOMER_META = '_stripe_customer_id';
-
     public static function instance(): Noah_Stripe_Webhooks {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -221,7 +219,7 @@ class Noah_Stripe_Webhooks {
 
     public function get_user_by_stripe_customer( string $stripe_customer_id ): ?WP_User {
         $users = get_users( [
-            'meta_key'   => self::STRIPE_CUSTOMER_META,
+            'meta_key'   => Noah_Stripe_Customer_Sync::meta_key(),
             'meta_value' => sanitize_text_field( $stripe_customer_id ),
             'number'     => 1,
         ] );

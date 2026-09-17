@@ -71,7 +71,7 @@ class Noah_Stripe_Customer_Sync {
     }
 
     private function ensure_stripe_customer( int $user_id, WC_Order $order ): string {
-        $existing = get_user_meta( $user_id, self::STRIPE_CUSTOMER_META, true );
+        $existing = self::get_customer_id( $user_id );
         if ( ! empty( $existing ) ) {
             return $existing;
         }
@@ -83,10 +83,39 @@ class Noah_Stripe_Customer_Sync {
             'metadata' => [ 'noah_wp_user_id' => $user_id ],
         ], 'customers' );
 
-        update_user_meta( $user_id, self::STRIPE_CUSTOMER_META, $customer->id );
+        self::set_customer_id( $user_id, $customer->id );
         Noah_DB::log_event( $user_id, null, 'stripe_customer_created', "Order #{$order->get_id()} | {$customer->id}" );
 
         return $customer->id;
+    }
+
+    // ---------------------------------------------------------------
+    // Shared customer-ID storage
+    //
+    // WooCommerce's Stripe Gateway stores the customer ID via
+    // update_user_option(), which WordPress prefixes with the table prefix
+    // (e.g. 'wp__stripe_customer_id'), NOT the bare '_stripe_customer_id'
+    // meta key. Every read/write of this value across the plugin must go
+    // through these helpers (or query meta_key() directly) so it reads the
+    // exact same row the gateway uses, instead of silently creating a
+    // second, duplicate Stripe Customer per purchase.
+    // ---------------------------------------------------------------
+
+    public static function get_customer_id( int $user_id ): string {
+        return (string) get_user_option( self::STRIPE_CUSTOMER_META, $user_id );
+    }
+
+    public static function set_customer_id( int $user_id, string $customer_id ): void {
+        update_user_option( $user_id, self::STRIPE_CUSTOMER_META, $customer_id, false );
+    }
+
+    /**
+     * The literal wp_usermeta.meta_key for raw queries (e.g. get_users()'s
+     * 'meta_key' arg, which does a direct DB lookup with no prefix-fallback).
+     */
+    public static function meta_key(): string {
+        global $wpdb;
+        return $wpdb->get_blog_prefix() . self::STRIPE_CUSTOMER_META;
     }
 
     private function tag_customer_with_purchase( string $customer_id, WC_Order $order ): void {

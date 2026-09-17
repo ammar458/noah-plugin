@@ -76,7 +76,7 @@ class Noah_Stripe_Recurring {
             return null;
         }
 
-        $customer_id = get_user_meta( $user_id, Noah_Stripe_Customer_Sync::STRIPE_CUSTOMER_META, true );
+        $customer_id = Noah_Stripe_Customer_Sync::get_customer_id( $user_id );
         if ( ! $customer_id ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_error', 'No Stripe customer id on user' );
             return null;

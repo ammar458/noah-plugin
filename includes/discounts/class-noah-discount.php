@@ -16,8 +16,6 @@ class Noah_Discount {
 
     private static ?Noah_Discount $instance = null;
 
-    const STRIPE_CUSTOMER_META = '_stripe_customer_id';
-
     public static function instance(): Noah_Discount {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -31,7 +29,7 @@ class Noah_Discount {
         if ( ! $user_id || ! Noah_Membership::is_member( $user_id ) ) {
             return false;
         }
-        return ! empty( get_user_meta( $user_id, self::STRIPE_CUSTOMER_META, true ) );
+        return ! empty( Noah_Stripe_Customer_Sync::get_customer_id( $user_id ) );
     }
 
     public static function get_percent(): float {

@@ -49,7 +49,7 @@ class Noah_Subscription_Length {
                 <label for="_noah_member_discount_percent">
                     <?php esc_html_e( 'Member discount override (%)', 'noah-protocol' ); ?>
                 </label>
-                <input type="number" min="0" max="100" step="1" class="short"
+                <input type="number" min="0" max="100" step="0.01" class="short"
                        id="_noah_member_discount_percent" name="_noah_member_discount_percent"
                        value="<?php echo esc_attr( $percent_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_percent() ); ?>">
                 <span class="description"><?php esc_html_e( 'Leave blank to use the global member discount percent for this product (simple or program). Set a value here only if this product\'s member price is not the standard discount.', 'noah-protocol' ); ?></span>

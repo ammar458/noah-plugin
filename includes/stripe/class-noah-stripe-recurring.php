@@ -165,7 +165,10 @@ class Noah_Stripe_Recurring {
                     try {
                         $intent = Noah_Stripe_Client::get( "payment_intents/{$intent_id}" );
                         if ( ! empty( $intent->payment_method ) ) {
-                            return is_string( $intent->payment_method ) ? $intent->payment_method : $intent->payment_method->id;
+                            $pm_id = is_string( $intent->payment_method ) ? $intent->payment_method : $intent->payment_method->id;
+                            if ( $this->attach_payment_method( $pm_id, $customer_id ) ) {
+                                return $pm_id;
+                            }
                         }
                     } catch ( \Exception $e ) {
                         // Fall through to other lookups.
@@ -193,6 +196,27 @@ class Noah_Stripe_Recurring {
         }
 
         return null;
+    }
+
+    /**
+     * The checkout's PaymentIntent doesn't reliably leave its payment method
+     * attached to the Customer — that depends on WC Stripe Gateway's checkout
+     * flow (classic vs. Payment Element/confirmation-token) and settings, and
+     * isn't something this plugin can force from the server side in every
+     * case. Attach it explicitly here instead, so the Subscription created
+     * below always has a valid, reusable payment method regardless of how
+     * checkout ran. Attaching a PM already attached to this same customer is
+     * a harmless no-op in Stripe; attaching one already attached to a
+     * DIFFERENT customer errors, in which case we fall through to the other
+     * resolution methods below.
+     */
+    private function attach_payment_method( string $payment_method_id, string $customer_id ): bool {
+        try {
+            Noah_Stripe_Client::post( [ 'customer' => $customer_id ], "payment_methods/{$payment_method_id}/attach" );
+            return true;
+        } catch ( \Exception $e ) {
+            return false;
+        }
     }
 
     private function notify_admin_subscription_failure( int $user_id, int $product_id, string $reason ): void {

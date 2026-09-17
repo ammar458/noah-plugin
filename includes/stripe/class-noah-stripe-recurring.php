@@ -37,6 +37,32 @@ class Noah_Stripe_Recurring {
 
         add_action( 'noah_program_subscription_started', [ $this, 'setup_stripe_cycle_limit' ], 10, 3 );
         add_action( 'noah_program_final_cycle_paid',     [ $this, 'cancel_stripe_subscription' ], 10, 2 );
+
+        // The cycle-1 checkout must always leave the card attached to the Stripe
+        // Customer, since create_subscription() below reuses that same payment
+        // method for cycle 2+. WC Stripe Gateway only sets setup_future_usage
+        // itself when the shopper checks "save card" or when its own
+        // has_subscription() check (tied to the separate WooCommerce Subscriptions
+        // plugin) fires — it has no concept of our custom noah_subscription
+        // product type, so that never happens on its own.
+        add_filter( 'wc_stripe_generate_create_intent_request', [ $this, 'force_save_payment_method_for_programs' ], 10, 2 );
+    }
+
+    public function force_save_payment_method_for_programs( array $request, ?WC_Order $order ): array {
+        if ( $order && $this->order_contains_noah_subscription( $order ) ) {
+            $request['setup_future_usage'] = 'off_session';
+        }
+        return $request;
+    }
+
+    private function order_contains_noah_subscription( WC_Order $order ): bool {
+        foreach ( $order->get_items() as $item ) {
+            $product = $item->get_product();
+            if ( $product && 'noah_subscription' === $product->get_type() ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ---------------------------------------------------------------

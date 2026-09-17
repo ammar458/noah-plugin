@@ -113,7 +113,7 @@ class Noah_Stripe_Recurring {
             return null;
         }
 
-        $payment_method = $this->resolve_payment_method( (string) $customer_id, $order_id );
+        $payment_method = $this->resolve_payment_method( (string) $customer_id, $order_id, $user_id, $product_id );
         if ( ! $payment_method ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_error', 'No chargeable payment method found' );
             $this->notify_admin_subscription_failure( $user_id, $product_id, 'No saved payment method available for recurring billing.' );
@@ -156,7 +156,7 @@ class Noah_Stripe_Recurring {
      * the customer just used), then the customer's stored default, then any
      * card already on file.
      */
-    private function resolve_payment_method( string $customer_id, int $order_id ): ?string {
+    private function resolve_payment_method( string $customer_id, int $order_id, int $user_id, int $product_id ): ?string {
         if ( $order_id ) {
             $order = wc_get_order( $order_id );
             if ( $order ) {
@@ -166,13 +166,17 @@ class Noah_Stripe_Recurring {
                         $intent = Noah_Stripe_Client::get( "payment_intents/{$intent_id}" );
                         if ( ! empty( $intent->payment_method ) ) {
                             $pm_id = is_string( $intent->payment_method ) ? $intent->payment_method : $intent->payment_method->id;
-                            if ( $this->attach_payment_method( $pm_id, $customer_id ) ) {
+                            if ( $this->attach_payment_method( $pm_id, $customer_id, $user_id, $product_id ) ) {
                                 return $pm_id;
                             }
+                        } else {
+                            Noah_DB::log_event( $user_id, $product_id, 'stripe_payment_method_resolution', "Order #{$order_id} intent {$intent_id} has no payment_method" );
                         }
                     } catch ( \Exception $e ) {
-                        // Fall through to other lookups.
+                        Noah_DB::log_event( $user_id, $product_id, 'stripe_payment_method_resolution', "Order #{$order_id} intent {$intent_id} lookup failed: {$e->getMessage()}" );
                     }
+                } else {
+                    Noah_DB::log_event( $user_id, $product_id, 'stripe_payment_method_resolution', "Order #{$order_id} has no _stripe_intent_id meta" );
                 }
             }
         }
@@ -210,11 +214,12 @@ class Noah_Stripe_Recurring {
      * DIFFERENT customer errors, in which case we fall through to the other
      * resolution methods below.
      */
-    private function attach_payment_method( string $payment_method_id, string $customer_id ): bool {
+    private function attach_payment_method( string $payment_method_id, string $customer_id, int $user_id, int $product_id ): bool {
         try {
             Noah_Stripe_Client::post( [ 'customer' => $customer_id ], "payment_methods/{$payment_method_id}/attach" );
             return true;
         } catch ( \Exception $e ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_payment_method_resolution', "Attach {$payment_method_id} to {$customer_id} failed: {$e->getMessage()}" );
             return false;
         }
     }

@@ -110,7 +110,7 @@ class Noah_Stripe_Recurring {
         ];
 
         if ( ! $is_membership && Noah_Discount::is_eligible( $user_id ) ) {
-            $params['discounts'] = [ [ 'coupon' => Noah_Discount::get_coupon_id() ] ];
+            $params['discounts'] = [ [ 'coupon' => Noah_Discount::get_coupon_id_for_product( $product_id ) ] ];
         }
 
         try {

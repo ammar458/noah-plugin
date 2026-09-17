@@ -41,4 +41,29 @@ class Noah_Discount {
     public static function get_coupon_id(): string {
         return (string) get_option( 'noah_stripe_coupon_id', 'OwNgTFij' );
     }
+
+    /**
+     * Per-product discount percent, falling back to the global default when
+     * the product has no override set (blank meta = use the global rule).
+     */
+    public static function get_percent_for_product( int $product_id ): float {
+        $override = get_post_meta( $product_id, '_noah_member_discount_percent', true );
+        if ( '' !== $override && is_numeric( $override ) ) {
+            return (float) $override;
+        }
+        return self::get_percent();
+    }
+
+    /**
+     * Per-product Stripe coupon, falling back to the global default. Only
+     * relevant for noah_subscription products: cycle 2+ billing must use a
+     * coupon whose percent_off in Stripe matches get_percent_for_product().
+     */
+    public static function get_coupon_id_for_product( int $product_id ): string {
+        $override = get_post_meta( $product_id, '_noah_stripe_coupon_id', true );
+        if ( '' !== $override ) {
+            return (string) $override;
+        }
+        return self::get_coupon_id();
+    }
 }

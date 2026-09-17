@@ -115,7 +115,7 @@ class Noah_Subscriptions {
         $product_id      = $product->get_id();
         $cycles          = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
         $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
-        $member_price    = round( $nonmember_price * ( 1 - Noah_Discount::get_percent() / 100 ), 2 );
+        $member_price    = round( $nonmember_price * ( 1 - Noah_Discount::get_percent_for_product( $product_id ) / 100 ), 2 );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
         $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
         $active_price    = $is_eligible ? $member_price : $nonmember_price;

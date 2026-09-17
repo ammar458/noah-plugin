@@ -32,7 +32,9 @@ class Noah_Subscription_Length {
         $period          = get_post_meta( $pid, '_noah_billing_period',    true ) ?: 'week';
         $is_membership   = get_post_meta( $pid, '_noah_is_membership_plan', true );
         $stripe_price_id = get_post_meta( $pid, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
-        $discount_percent = Noah_Discount::get_percent();
+        $percent_override = get_post_meta( $pid, '_noah_member_discount_percent', true );
+        $coupon_override  = get_post_meta( $pid, '_noah_stripe_coupon_id', true );
+        $discount_percent = Noah_Discount::get_percent_for_product( $pid );
 
         if ( '' === $nonmember_price ) {
             $regular = get_post_meta( $pid, '_regular_price', true );
@@ -41,6 +43,18 @@ class Noah_Subscription_Length {
             }
         }
         ?>
+
+        <div class="options_group">
+            <p class="form-field">
+                <label for="_noah_member_discount_percent">
+                    <?php esc_html_e( 'Member discount override (%)', 'noah-protocol' ); ?>
+                </label>
+                <input type="number" min="0" max="100" step="1" class="short"
+                       id="_noah_member_discount_percent" name="_noah_member_discount_percent"
+                       value="<?php echo esc_attr( $percent_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_percent() ); ?>">
+                <span class="description"><?php esc_html_e( 'Leave blank to use the global member discount percent for this product (simple or program). Set a value here only if this product\'s member price is not the standard discount.', 'noah-protocol' ); ?></span>
+            </p>
+        </div>
 
         <div class="options_group noah-subscription-only">
 
@@ -62,6 +76,16 @@ class Noah_Subscription_Length {
                         ); ?>
                     <?php endif; ?>
                 </span>
+            </p>
+
+            <p class="form-field">
+                <label for="_noah_stripe_coupon_id">
+                    <?php esc_html_e( 'Stripe Coupon ID override', 'noah-protocol' ); ?>
+                </label>
+                <input type="text" class="short"
+                       id="_noah_stripe_coupon_id" name="_noah_stripe_coupon_id"
+                       value="<?php echo esc_attr( $coupon_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_coupon_id() ); ?>">
+                <span class="description"><?php esc_html_e( 'Only needed if the discount override above differs from the global percent: create a matching Coupon in the Stripe Dashboard and enter its ID here, so cycle 2+ billing matches the price shown at checkout. Leave blank to use the global coupon.', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -111,6 +135,16 @@ class Noah_Subscription_Length {
     public function save_product_fields_early( int $post_id ): void {
         $product_type = $this->get_posted_product_type();
 
+        // Discount override applies to any product type (programs and simple products alike).
+        if ( isset( $_POST['_noah_member_discount_percent'] ) ) {
+            $percent_override = wc_clean( wp_unslash( $_POST['_noah_member_discount_percent'] ) );
+            if ( '' !== $percent_override && is_numeric( $percent_override ) ) {
+                update_post_meta( $post_id, '_noah_member_discount_percent', (float) $percent_override );
+            } else {
+                delete_post_meta( $post_id, '_noah_member_discount_percent' );
+            }
+        }
+
         if ( 'noah_subscription' === $product_type ) {
             if ( isset( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) ) {
                 $price_id = sanitize_text_field( wp_unslash( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) );
@@ -127,6 +161,14 @@ class Noah_Subscription_Length {
                 $period = sanitize_key( $_POST['_noah_billing_period'] );
                 if ( in_array( $period, [ 'week', 'month' ], true ) ) {
                     update_post_meta( $post_id, '_noah_billing_period', $period );
+                }
+            }
+            if ( isset( $_POST['_noah_stripe_coupon_id'] ) ) {
+                $coupon_override = sanitize_text_field( wp_unslash( $_POST['_noah_stripe_coupon_id'] ) );
+                if ( '' !== $coupon_override ) {
+                    update_post_meta( $post_id, '_noah_stripe_coupon_id', $coupon_override );
+                } else {
+                    delete_post_meta( $post_id, '_noah_stripe_coupon_id' );
                 }
             }
             $is_membership_plan = ! empty( $_POST['_noah_is_membership_plan'] ) ? 'yes' : 'no';

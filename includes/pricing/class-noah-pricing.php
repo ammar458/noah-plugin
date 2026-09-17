@@ -4,8 +4,10 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Noah_Pricing
  * Applies member prices in the cart and shows dual price HTML on product pages.
- * Member price is always derived (nonmember price minus Noah_Discount::get_percent()),
- * never a manually-entered per-product value.
+ * Member price is always derived (nonmember price minus the discount percent),
+ * never a manually-entered per-product price — but the percent itself can be
+ * overridden per product via Noah_Discount::get_percent_for_product(), falling
+ * back to the global noah_member_discount_percent option.
  */
 class Noah_Pricing {
 
@@ -50,7 +52,8 @@ class Noah_Pricing {
 
             $price = (float) $nonmember_price;
             if ( $is_eligible ) {
-                $price = round( $price * ( 1 - Noah_Discount::get_percent() / 100 ), 2 );
+                $percent = Noah_Discount::get_percent_for_product( $product_id );
+                $price   = round( $price * ( 1 - $percent / 100 ), 2 );
             }
             $product->set_price( $price );
         }
@@ -71,7 +74,7 @@ class Noah_Pricing {
             return $price_html;
         }
 
-        $percent      = Noah_Discount::get_percent();
+        $percent      = Noah_Discount::get_percent_for_product( $product->get_id() );
         $member_price = round( (float) $nonmember_price * ( 1 - $percent / 100 ), 2 );
 
         if ( Noah_Discount::is_eligible( get_current_user_id() ) ) {

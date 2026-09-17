@@ -36,17 +36,17 @@ class Noah_Discount_Cart {
             return;
         }
 
-        $percent = Noah_Discount::get_percent();
-        if ( $percent <= 0 ) {
-            return;
-        }
-
         foreach ( $cart->get_cart() as $cart_item ) {
             $product = $cart_item['data'];
 
             // noah_subscription products are priced by Noah_Pricing (first cycle)
             // and discounted in Stripe via the coupon on the recurring Subscription.
             if ( 'noah_subscription' === $product->get_type() ) {
+                continue;
+            }
+
+            $percent = Noah_Discount::get_percent_for_product( $cart_item['product_id'] );
+            if ( $percent <= 0 ) {
                 continue;
             }
 

@@ -136,6 +136,40 @@ class Noah_DB {
         return true;
     }
 
+    /**
+     * Removes one member's tracking row. Only ever called on rows already in
+     * a terminal, non-active status (cancelled/expired) — never on an active
+     * membership. Safe to delete: user_id is a UNIQUE key, so a future
+     * grant() just inserts a fresh row via upsert_member(), and the audit
+     * trail (noah_access_log) is a separate table unaffected by this.
+     */
+    public static function delete_member( int $user_id ): bool {
+        global $wpdb;
+        return (bool) $wpdb->delete(
+            "{$wpdb->prefix}noah_members",
+            [ 'user_id' => $user_id, ],
+            [ '%d' ]
+        );
+    }
+
+    /**
+     * Bulk-removes every member row that isn't currently 'active'. Returns
+     * the number of rows deleted.
+     */
+    public static function delete_inactive_members(): int {
+        global $wpdb;
+        return (int) $wpdb->query(
+            "DELETE FROM {$wpdb->prefix}noah_members WHERE status != 'active'"
+        );
+    }
+
+    public static function count_inactive_members(): int {
+        global $wpdb;
+        return (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}noah_members WHERE status != 'active'"
+        );
+    }
+
     // ---------------------------------------------------------------
     // Program access
     // ---------------------------------------------------------------

@@ -30,6 +30,8 @@ class Noah_Admin {
 
         add_action( 'admin_post_noah_clear_stripe_log',      [ $this, 'clear_stripe_log'      ] );
         add_action( 'admin_post_noah_cancel_member',         [ $this, 'handle_cancel_member'  ] );
+        add_action( 'admin_post_noah_delete_member',         [ $this, 'handle_delete_member'  ] );
+        add_action( 'admin_post_noah_delete_inactive_members', [ $this, 'handle_delete_inactive_members' ] );
     }
 
     // ---------------------------------------------------------------
@@ -381,15 +383,36 @@ class Noah_Admin {
              ORDER BY m.created_at DESC LIMIT %d OFFSET %d",
             $per_page, $offset
         ) );
-        $total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}noah_members" );
-        $pages = ceil( $total / $per_page );
+        $total    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}noah_members" );
+        $pages    = ceil( $total / $per_page );
+        $inactive = Noah_DB::count_inactive_members();
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Noah Memberships and programs Members', 'noah-protocol' ); ?></h1>
             <?php if ( isset( $_GET['cancelled'] ) ) : ?>
                 <div class="notice notice-success"><p><?php esc_html_e( 'Membership cancelled.', 'noah-protocol' ); ?></p></div>
             <?php endif; ?>
+            <?php if ( isset( $_GET['deleted'] ) ) : ?>
+                <div class="notice notice-success"><p><?php esc_html_e( 'Member record deleted.', 'noah-protocol' ); ?></p></div>
+            <?php endif; ?>
+            <?php if ( isset( $_GET['bulk_deleted'] ) ) : ?>
+                <div class="notice notice-success"><p><?php printf( esc_html__( 'Deleted %d cancelled/expired member record(s).', 'noah-protocol' ), (int) $_GET['bulk_deleted'] ); ?></p></div>
+            <?php endif; ?>
             <p><?php printf( esc_html__( 'Total: %d members', 'noah-protocol' ), esc_html( $total ) ); ?></p>
+            <?php if ( $inactive > 0 ) : ?>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+                  onsubmit="return confirm('<?php echo esc_js( sprintf(
+                      /* translators: %d: number of cancelled/expired member rows */
+                      __( 'Permanently delete %d cancelled/expired member record(s)? This only removes their membership tracking row, not their user account or order history, and cannot be undone.', 'noah-protocol' ),
+                      $inactive
+                  ) ); ?>')">
+                <input type="hidden" name="action" value="noah_delete_inactive_members">
+                <?php wp_nonce_field( 'noah_delete_inactive_members', 'noah_nonce' ); ?>
+                <button type="submit" class="button button-secondary">
+                    <?php printf( esc_html__( 'Clear %d cancelled/expired member record(s)', 'noah-protocol' ), (int) $inactive ); ?>
+                </button>
+            </form>
+            <?php endif; ?>
             <table class="wp-list-table widefat fixed striped">
                 <thead><tr>
                     <th><?php esc_html_e( 'Name', 'noah-protocol' ); ?></th>
@@ -418,7 +441,15 @@ class Noah_Admin {
                                 <?php wp_nonce_field( 'noah_cancel_member', 'noah_nonce' ); ?>
                                 <button type="submit" class="button button-small button-link-delete"><?php esc_html_e( 'Cancel', 'noah-protocol' ); ?></button>
                             </form>
-                            <?php else : echo '--'; endif; ?>
+                            <?php else : ?>
+                            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+                                  onsubmit="return confirm('<?php esc_attr_e( 'Permanently delete this member record? This only removes their membership tracking row, not their user account or order history.', 'noah-protocol' ); ?>')">
+                                <input type="hidden" name="action"  value="noah_delete_member">
+                                <input type="hidden" name="user_id" value="<?php echo esc_attr( $row->user_id ); ?>">
+                                <?php wp_nonce_field( 'noah_delete_member', 'noah_nonce' ); ?>
+                                <button type="submit" class="button button-small button-link-delete"><?php esc_html_e( 'Delete', 'noah-protocol' ); ?></button>
+                            </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; endif; ?>
@@ -474,6 +505,40 @@ class Noah_Admin {
             Noah_Membership::instance()->revoke( $user_id, 'admin_manual_cancel' );
         }
         wp_safe_redirect( admin_url( 'admin.php?page=noah-members&cancelled=1' ) );
+        exit;
+    }
+
+    /**
+     * Deletes one member's tracking row. Only ever removes rows that are
+     * already cancelled/expired — an active member must be cancelled first
+     * (a separate, existing action), so this never touches a live membership.
+     */
+    public function handle_delete_member(): void {
+        if ( ! current_user_can( 'manage_woocommerce' ) || ! check_admin_referer( 'noah_delete_member', 'noah_nonce' ) ) {
+            wp_die( esc_html__( 'Unauthorized', 'noah-protocol' ) );
+        }
+        $user_id = absint( $_POST['user_id'] ?? 0 );
+        if ( $user_id ) {
+            $member = Noah_DB::get_member( $user_id );
+            if ( $member && 'active' !== $member->status ) {
+                Noah_DB::delete_member( $user_id );
+                Noah_DB::log_event( $user_id, null, 'membership_row_deleted', 'admin_manual_delete' );
+            }
+        }
+        wp_safe_redirect( admin_url( 'admin.php?page=noah-members&deleted=1' ) );
+        exit;
+    }
+
+    /**
+     * Bulk-deletes every non-active (cancelled/expired) member row.
+     */
+    public function handle_delete_inactive_members(): void {
+        if ( ! current_user_can( 'manage_woocommerce' ) || ! check_admin_referer( 'noah_delete_inactive_members', 'noah_nonce' ) ) {
+            wp_die( esc_html__( 'Unauthorized', 'noah-protocol' ) );
+        }
+        $count = Noah_DB::delete_inactive_members();
+        Noah_DB::log_event( get_current_user_id(), null, 'membership_rows_bulk_deleted', "{$count} row(s)" );
+        wp_safe_redirect( admin_url( 'admin.php?page=noah-members&bulk_deleted=' . $count ) );
         exit;
     }
 

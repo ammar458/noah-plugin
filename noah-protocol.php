@@ -3,7 +3,7 @@
  * Plugin Name: Noah Memberships and programs
  * Plugin URI:  https://ringomedia.com
  * Description: Membership subscriptions, fixed-cycle program billing, automatic member discounts, and content access control. Built for WooCommerce + Stripe for WooCommerce.
- * Version:     3.2.4
+ * Version:     3.2.5
  * Author:      RingoMedia
  * Author URI:  https://ringomedia.com
  * Text Domain: noah-protocol
@@ -16,7 +16,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'NOAH_VERSION',     '3.2.4' );
+define( 'NOAH_VERSION',     '3.2.5' );
 define( 'NOAH_FILE',        __FILE__ );
 define( 'NOAH_PATH',        plugin_dir_path( __FILE__ ) );
 define( 'NOAH_URL',         plugin_dir_url( __FILE__ ) );

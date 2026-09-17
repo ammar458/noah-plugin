@@ -44,8 +44,19 @@ class Noah_Stripe_Recurring {
         // itself when the shopper checks "save card" or when its own
         // has_subscription() check (tied to the separate WooCommerce Subscriptions
         // plugin) fires — it has no concept of our custom noah_subscription
-        // product type, so that never happens on its own.
+        // product type, so that never happens on its own. Kept as a no-op safety
+        // net for the classic/card-element checkout flow; it doesn't cover the
+        // Stripe Checkout Session flow below, which builds its own request
+        // shape and only applies this filter for a subset of call sites.
         add_filter( 'wc_stripe_generate_create_intent_request', [ $this, 'force_save_payment_method_for_programs' ], 10, 2 );
+
+        // wc_stripe_request_body is a generic filter applied to EVERY Stripe API
+        // request body right before it's sent, regardless of checkout flow —
+        // this is what actually catches the Checkout Session flow (confirmed via
+        // this site's own logs: requests go through checkout/sessions, not a
+        // plain payment_intents call), where the gateway only offers the
+        // shopper an optional "save card" checkbox and never forces it.
+        add_filter( 'wc_stripe_request_body', [ $this, 'force_save_payment_method_on_checkout_session' ], 10, 2 );
     }
 
     public function force_save_payment_method_for_programs( array $request, ?WC_Order $order ): array {
@@ -55,9 +66,36 @@ class Noah_Stripe_Recurring {
         return $request;
     }
 
+    public function force_save_payment_method_on_checkout_session( array $request, string $api ): array {
+        if ( 'checkout/sessions' !== $api || 'payment' !== ( $request['mode'] ?? '' ) ) {
+            return $request;
+        }
+        if ( ! $this->cart_contains_noah_subscription() ) {
+            return $request;
+        }
+        if ( ! isset( $request['payment_intent_data'] ) || ! is_array( $request['payment_intent_data'] ) ) {
+            $request['payment_intent_data'] = [];
+        }
+        $request['payment_intent_data']['setup_future_usage'] = 'off_session';
+        return $request;
+    }
+
     private function order_contains_noah_subscription( WC_Order $order ): bool {
         foreach ( $order->get_items() as $item ) {
             $product = $item->get_product();
+            if ( $product && 'noah_subscription' === $product->get_type() ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function cart_contains_noah_subscription(): bool {
+        if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+            return false;
+        }
+        foreach ( WC()->cart->get_cart() as $cart_item ) {
+            $product = $cart_item['data'] ?? null;
             if ( $product && 'noah_subscription' === $product->get_type() ) {
                 return true;
             }

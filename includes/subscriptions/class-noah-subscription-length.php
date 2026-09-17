@@ -54,6 +54,17 @@ class Noah_Subscription_Length {
                        value="<?php echo esc_attr( $percent_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_percent() ); ?>">
                 <span class="description"><?php esc_html_e( 'Leave blank to use the global member discount percent for this product (simple or program). Set a value here only if this product\'s member price is not the standard discount.', 'noah-protocol' ); ?></span>
             </p>
+
+            <p class="form-field">
+                <label for="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>">
+                    <?php esc_html_e( 'Stripe Price ID', 'noah-protocol' ); ?>
+                </label>
+                <input type="text" class="short"
+                       id="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
+                       name="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
+                       value="<?php echo esc_attr( $stripe_price_id ); ?>" placeholder="price_...">
+                <span class="description"><?php esc_html_e( 'For a program (noah_subscription), this is the recurring Price this product bills against. For a simple one-time product, it\'s optional and only used to tag the buyer\'s Stripe customer record with which price they purchased — it does not affect what they\'re charged.', 'noah-protocol' ); ?></span>
+            </p>
         </div>
 
         <div class="options_group noah-subscription-only">
@@ -86,17 +97,6 @@ class Noah_Subscription_Length {
                        id="_noah_stripe_coupon_id" name="_noah_stripe_coupon_id"
                        value="<?php echo esc_attr( $coupon_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_coupon_id() ); ?>">
                 <span class="description"><?php esc_html_e( 'Only needed if the discount override above differs from the global percent: create a matching Coupon in the Stripe Dashboard and enter its ID here, so cycle 2+ billing matches the price shown at checkout. Leave blank to use the global coupon.', 'noah-protocol' ); ?></span>
-            </p>
-
-            <p class="form-field">
-                <label for="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>">
-                    <?php esc_html_e( 'Stripe Price ID (recurring)', 'noah-protocol' ); ?>
-                </label>
-                <input type="text" class="short"
-                       id="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
-                       name="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>"
-                       value="<?php echo esc_attr( $stripe_price_id ); ?>" placeholder="price_...">
-                <span class="description"><?php esc_html_e( 'The Stripe recurring Price this product bills weekly/monthly. Eligible members get this price with the discount coupon attached, rather than a separate Stripe Price.', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -135,7 +135,8 @@ class Noah_Subscription_Length {
     public function save_product_fields_early( int $post_id ): void {
         $product_type = $this->get_posted_product_type();
 
-        // Discount override applies to any product type (programs and simple products alike).
+        // Discount override and Stripe Price ID apply to any product type
+        // (programs and simple products alike).
         if ( isset( $_POST['_noah_member_discount_percent'] ) ) {
             $percent_override = wc_clean( wp_unslash( $_POST['_noah_member_discount_percent'] ) );
             if ( '' !== $percent_override && is_numeric( $percent_override ) ) {
@@ -144,16 +145,16 @@ class Noah_Subscription_Length {
                 delete_post_meta( $post_id, '_noah_member_discount_percent' );
             }
         }
+        if ( isset( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) ) {
+            $price_id = sanitize_text_field( wp_unslash( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) );
+            if ( '' !== $price_id ) {
+                update_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, $price_id );
+            } else {
+                delete_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META );
+            }
+        }
 
         if ( 'noah_subscription' === $product_type ) {
-            if ( isset( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) ) {
-                $price_id = sanitize_text_field( wp_unslash( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) );
-                if ( '' !== $price_id ) {
-                    update_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, $price_id );
-                } else {
-                    delete_post_meta( $post_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META );
-                }
-            }
             if ( isset( $_POST['_noah_billing_cycles'] ) ) {
                 update_post_meta( $post_id, '_noah_billing_cycles', absint( $_POST['_noah_billing_cycles'] ) );
             }

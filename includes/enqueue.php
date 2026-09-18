@@ -24,12 +24,22 @@ add_action( 'wp_enqueue_scripts', function () {
 } );
 
 // Frontend: hide the quantity selector for products in the Retreats/Programs
-// categories — these are always purchased as a single unit (a program/retreat
-// seat), not a stock-counted item.
+// categories, and for any noah_subscription product billed weekly or
+// monthly — these are always purchased as a single unit (a program/retreat
+// seat or a recurring membership), not a stock-counted item.
+if ( ! function_exists( 'noah_should_hide_quantity' ) ) {
+    function noah_should_hide_quantity( int $product_id ): bool {
+        if ( has_term( [ 'retreats', 'programs' ], 'product_cat', $product_id ) ) {
+            return true;
+        }
+        return in_array( get_post_meta( $product_id, '_noah_billing_period', true ), [ 'week', 'month' ], true );
+    }
+}
+
 add_filter( 'body_class', function ( array $classes ): array {
     if ( is_product() ) {
         $product_id = get_queried_object_id();
-        if ( $product_id && has_term( [ 'retreats', 'programs' ], 'product_cat', $product_id ) ) {
+        if ( $product_id && noah_should_hide_quantity( $product_id ) ) {
             $classes[] = 'noah-hide-quantity';
         }
     }
@@ -38,7 +48,7 @@ add_filter( 'body_class', function ( array $classes ): array {
 
 add_filter( 'woocommerce_cart_item_class', function ( string $class, array $cart_item ): string {
     $product_id = $cart_item['product_id'] ?? 0;
-    if ( $product_id && has_term( [ 'retreats', 'programs' ], 'product_cat', $product_id ) ) {
+    if ( $product_id && noah_should_hide_quantity( $product_id ) ) {
         $class .= ' noah-hide-quantity-row';
     }
     return $class;

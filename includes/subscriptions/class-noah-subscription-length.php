@@ -46,7 +46,7 @@ class Noah_Subscription_Length {
         ?>
 
         <div class="options_group">
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="_noah_member_discount_percent">
                     <?php esc_html_e( 'Member discount override (%)', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'Leave blank to use the global member discount percent for this product (simple or program). Set a value here only if this product\'s member price is not the standard discount.', 'noah-protocol' ) ); ?>
@@ -56,7 +56,7 @@ class Noah_Subscription_Length {
                        value="<?php echo esc_attr( $percent_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_percent() ); ?>">
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="_noah_member_price_override">
                     <?php esc_html_e( 'Member price override ($)', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'Leave blank to use the percent above. Set an exact member price here instead when the percent-derived price doesn\'t land on a clean number (e.g. 16.67% off $1800 is $1499.94, not $1500) — this value is charged exactly as entered.', 'noah-protocol' ) ); ?>
@@ -66,7 +66,7 @@ class Noah_Subscription_Length {
                        value="<?php echo esc_attr( $price_override ); ?>" placeholder="e.g. 1500.00">
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="<?php echo esc_attr( Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ); ?>">
                     <?php esc_html_e( 'Stripe Price ID', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'For a program (noah_subscription), this is the recurring Price this product bills against. For a simple one-time product, it\'s optional and only used to tag the buyer\'s Stripe customer record with which price they purchased — it does not affect what they\'re charged.', 'noah-protocol' ) ); ?>
@@ -80,7 +80,7 @@ class Noah_Subscription_Length {
 
         <div class="options_group noah-subscription-only">
 
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="_noah_nonmember_price">
                     <strong><?php esc_html_e( 'Non-Member Price (per billing period)', 'noah-protocol' ); ?></strong>
                     <?php echo wc_help_tip( __( 'Price for customers without an active membership. The member price and the frontend total are both calculated automatically from this value.', 'noah-protocol' ) ); ?>
@@ -109,7 +109,7 @@ class Noah_Subscription_Length {
                 <?php endif; ?>
             </p>
 
-            <p class="form-field noah-onetime-hide">
+            <p class="form-field noah-field noah-onetime-hide">
                 <label for="_noah_stripe_coupon_id">
                     <?php esc_html_e( 'Stripe Coupon ID override', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'Only needed if the discount override above differs from the global percent: create a matching Coupon in the Stripe Dashboard and enter its ID here, so cycle 2+ billing matches the price shown at checkout. Leave blank to use the global coupon. Not used when Billing period is "One Time Payment" — there is no cycle 2+.', 'noah-protocol' ) ); ?>
@@ -119,7 +119,7 @@ class Noah_Subscription_Length {
                        value="<?php echo esc_attr( $coupon_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_coupon_id() ); ?>">
             </p>
 
-            <p class="form-field noah-onetime-hide">
+            <p class="form-field noah-field noah-onetime-hide">
                 <label for="_noah_billing_cycles">
                     <?php esc_html_e( 'Number of billing cycles', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'e.g. 3 = charge 3 times then stop. 0 = ongoing (membership plan). Not used when Billing period is "One Time Payment".', 'noah-protocol' ) ); ?>
@@ -129,7 +129,7 @@ class Noah_Subscription_Length {
                        value="<?php echo esc_attr( $cycles ); ?>" placeholder="0">
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="_noah_billing_period">
                     <?php esc_html_e( 'Billing period', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'One Time Payment: a single charge at checkout, no recurring Stripe billing, no automatic access expiry — use this for onsite/in-person programs where duration is already described on the product page.', 'noah-protocol' ) ); ?>
@@ -142,7 +142,7 @@ class Noah_Subscription_Length {
                 </select>
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-field">
                 <label for="_noah_is_membership_plan">
                     <?php esc_html_e( 'This product grants NOAH Membership', 'noah-protocol' ); ?>
                     <?php echo wc_help_tip( __( 'On order completion, the customer receives the noah_member role and member pricing.', 'noah-protocol' ) ); ?>

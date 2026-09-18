@@ -33,6 +33,23 @@ add_action( 'admin_head', function () {
     <style>
     #woocommerce-product-data ul.wc-tabs li.general_options { display: block !important; }
     .noah-subscription-only { display: none; }
+    /* Our field labels run longer than WooCommerce's default 150px label
+       column (e.g. "Member discount override (%)"), which otherwise wraps
+       them across multiple lines. Stack label above input instead so the
+       label always reads on one line. */
+    .noah-field label {
+        float: none;
+        width: auto;
+        white-space: nowrap;
+        display: block;
+        padding-top: 0;
+        margin-bottom: 4px;
+    }
+    .noah-field input,
+    .noah-field select {
+        float: none;
+        margin-left: 0 !important;
+    }
     </style>
     <script type="text/javascript">
     jQuery(document).ready(function($) {

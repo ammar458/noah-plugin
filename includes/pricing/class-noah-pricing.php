@@ -60,7 +60,11 @@ class Noah_Pricing {
             }
 
             $price = (float) $nonmember_price;
-            if ( $is_eligible ) {
+            // The membership plan itself is never discounted — the member
+            // discount only applies to programs bought once you already have
+            // membership, not to buying the membership.
+            $is_membership_plan = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
+            if ( $is_eligible && ! $is_membership_plan ) {
                 $price = Noah_Discount::get_member_price_for_product( $product_id, $price );
             }
             $product->set_price( $price );
@@ -74,6 +78,11 @@ class Noah_Pricing {
      */
     public function show_dual_price_html( string $price_html, WC_Product $product ): string {
         if ( is_admin() || 'noah_subscription' !== $product->get_type() ) {
+            return $price_html;
+        }
+
+        // The membership plan itself is never discounted — see apply_member_prices().
+        if ( 'yes' === get_post_meta( $product->get_id(), '_noah_is_membership_plan', true ) ) {
             return $price_html;
         }
 

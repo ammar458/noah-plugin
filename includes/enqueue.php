@@ -61,12 +61,14 @@ add_filter( 'woocommerce_account_menu_items', function ( array $items ): array {
     return $items;
 } );
 
-// Frontend: replace WooCommerce's default inline notice banners (error,
-// success, notice — every wc_add_notice() call site-wide, core and ours)
-// with a custom popup. The templates below render each message as a hidden
-// data node; assets/js/frontend.js turns those into the popup.
+// Frontend: template overrides — WooCommerce's default inline notice
+// banners (error, success, notice — every wc_add_notice() call site-wide,
+// core and ours) become a custom popup (assets/js/frontend.js turns the
+// hidden data nodes below into it), and the My Account dashboard gets a
+// branded welcome + quick-link cards instead of the plain default text.
 add_filter( 'woocommerce_locate_template', function ( string $template, string $template_name, string $template_path ): string {
-    if ( in_array( $template_name, [ 'notices/error.php', 'notices/success.php', 'notices/notice.php' ], true ) ) {
+    $overridable = [ 'notices/error.php', 'notices/success.php', 'notices/notice.php', 'myaccount/dashboard.php' ];
+    if ( in_array( $template_name, $overridable, true ) ) {
         $override = NOAH_PATH . 'woocommerce/' . $template_name;
         if ( file_exists( $override ) ) {
             return $override;

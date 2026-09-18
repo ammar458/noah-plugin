@@ -263,3 +263,53 @@ tr.noah-hide-quantity-row .product-quantity .quantity { display: none !important
 .noah-notice-item--error   { background: #fdecea; color: #7a1f1f; border-left: 4px solid #dc2626; }
 .noah-notice-item--success { background: #eaf7ec; color: #155724; border-left: 4px solid #16a34a; }
 .noah-notice-item--notice  { background: #eef4fb; color: #1f4e79; border-left: 4px solid #2563eb; }
+
+/* ── My Account dashboard ─────────────────────────────── */
+.noah-dashboard-welcome {
+    background: #faf5f0;
+    border: 1px solid #e8ddd3;
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+}
+
+.noah-dashboard-welcome h2 {
+    margin: 0 0 10px;
+    color: #3b2a1a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.noah-dashboard-welcome p { margin: 0 0 6px; color: #555; }
+
+.noah-dashboard-meta { font-size: 13px; color: #888; }
+.noah-dashboard-meta a { color: #7b5c3a; }
+
+.noah-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat( auto-fit, minmax(200px, 1fr) );
+    gap: 16px;
+}
+
+.noah-dashboard-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #fff;
+    border: 1px solid #e8ddd3;
+    border-radius: 10px;
+    padding: 20px;
+    text-decoration: none;
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+
+.noah-dashboard-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+    transform: translateY(-2px);
+}
+
+.noah-dashboard-card-icon { font-size: 28px; }
+.noah-dashboard-card-title { font-weight: 700; color: #3b2a1a; font-size: 15px; }
+.noah-dashboard-card-desc { font-size: 13px; color: #777; line-height: 1.4; }

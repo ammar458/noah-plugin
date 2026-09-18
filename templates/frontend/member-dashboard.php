@@ -8,6 +8,12 @@ $is_active = Noah_Membership::is_member( $user_id );
 <div class="noah-member-dashboard">
     <h3><?php esc_html_e( 'My NOAH Membership', 'noah-protocol' ); ?></h3>
 
+    <?php if ( isset( $_GET['noah_cancelled'] ) ) : ?>
+        <div class="woocommerce-message noah-checkout-notice">
+            <?php esc_html_e( 'Your membership has been cancelled. You will not be billed again.', 'noah-protocol' ); ?>
+        </div>
+    <?php endif; ?>
+
     <?php if ( $member && $is_active ) : ?>
 
         <p>
@@ -59,6 +65,15 @@ $is_active = Noah_Membership::is_member( $user_id );
             </tbody>
         </table>
         <?php endif; ?>
+
+        <p style="margin-top:20px;">
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
+                  onsubmit="return confirm('<?php echo esc_js( __( 'Cancel your NOAH Membership? You will lose member pricing and access to members-only content, and will not be billed again.', 'noah-protocol' ) ); ?>')">
+                <input type="hidden" name="action" value="noah_customer_cancel_membership">
+                <?php wp_nonce_field( 'noah_customer_cancel_membership', 'noah_nonce' ); ?>
+                <button type="submit" class="button"><?php esc_html_e( 'Cancel Membership', 'noah-protocol' ); ?></button>
+            </form>
+        </p>
 
     <?php elseif ( $member ) : ?>
 

@@ -47,6 +47,9 @@ class Noah_Membership {
         add_filter( 'woocommerce_account_menu_items',                [ $this, 'add_account_tab'    ] );
         add_action( 'woocommerce_account_noah-membership_endpoint',  [ $this, 'render_account_tab' ] );
         add_action( 'init',                                          [ $this, 'register_endpoint'  ] );
+
+        // Customer self-service cancellation from the My Account membership tab
+        add_action( 'admin_post_noah_customer_cancel_membership', [ $this, 'handle_customer_cancel_membership' ] );
     }
 
     // ---------------------------------------------------------------
@@ -259,6 +262,25 @@ class Noah_Membership {
         $user_id = get_current_user_id();
         $member  = Noah_DB::get_member( $user_id );
         include NOAH_PATH . 'templates/frontend/member-dashboard.php';
+    }
+
+    /**
+     * A logged-in customer cancelling their own membership from the My
+     * Account tab. Same effect as the admin "Cancel" button — revoke() below
+     * also fires 'noah_membership_revoked', which cancels the Stripe
+     * Subscription (Noah_Stripe_Recurring) and revokes program accesses
+     * (Noah_Access_Revoke).
+     */
+    public function handle_customer_cancel_membership(): void {
+        if ( ! is_user_logged_in() ) {
+            wp_die( esc_html__( 'You must be logged in to do that.', 'noah-protocol' ) );
+        }
+        if ( ! check_admin_referer( 'noah_customer_cancel_membership', 'noah_nonce', false ) ) {
+            wp_die( esc_html__( 'Security check failed.', 'noah-protocol' ) );
+        }
+        $this->revoke( get_current_user_id(), 'customer_self_cancel' );
+        wp_safe_redirect( add_query_arg( 'noah_cancelled', '1', wc_get_account_endpoint_url( 'noah-membership' ) ) );
+        exit;
     }
 
     // ---------------------------------------------------------------

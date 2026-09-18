@@ -42,6 +42,7 @@ class Noah_Stripe_Recurring {
 
         add_action( 'noah_program_subscription_started', [ $this, 'setup_stripe_cycle_limit' ], 10, 3 );
         add_action( 'noah_program_final_cycle_paid',     [ $this, 'cancel_stripe_subscription' ], 10, 2 );
+        add_action( 'noah_membership_revoked',           [ $this, 'cancel_membership_subscription' ] );
 
         // The cycle-1 checkout must always leave the card attached to the Stripe
         // Customer, since create_subscription() below reuses that same payment
@@ -348,6 +349,34 @@ class Noah_Stripe_Recurring {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancelled_final_cycle' );
         } catch ( \Exception $e ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancel_error', $e->getMessage() );
+        }
+    }
+
+    /**
+     * Fires on 'noah_membership_revoked' (admin cancel, customer self-cancel,
+     * or a Stripe webhook already reporting the subscription gone). Cancels
+     * the membership's own Stripe Subscription so the customer stops being
+     * billed — revoking membership locally must never leave a live
+     * subscription still charging them.
+     */
+    public function cancel_membership_subscription( int $user_id ): void {
+        $member = Noah_DB::get_member( $user_id );
+        if ( ! $member || empty( $member->stripe_sub_id ) ) {
+            return;
+        }
+
+        if ( ! Noah_Stripe_Client::available() ) {
+            return;
+        }
+
+        try {
+            Noah_Stripe_Client::delete( "subscriptions/{$member->stripe_sub_id}" );
+            Noah_DB::log_event( $user_id, null, 'stripe_membership_sub_cancelled', $member->stripe_sub_id );
+        } catch ( \Exception $e ) {
+            // Already-cancelled subscriptions (e.g. this revoke was itself
+            // triggered by a Stripe webhook reporting the cancellation) 404 here —
+            // that's expected, not a failure worth alerting on.
+            Noah_DB::log_event( $user_id, null, 'stripe_membership_sub_cancel_error', $e->getMessage() );
         }
     }
 }

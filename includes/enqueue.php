@@ -50,7 +50,7 @@ add_action( 'admin_head', function () {
         margin: 0;
     }
     .noah-field .description {
-        margin-left: 111px;
+        margin-left: 111px !important;
     }
     </style>
     <script type="text/javascript">

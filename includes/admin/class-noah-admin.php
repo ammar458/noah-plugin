@@ -420,11 +420,12 @@ class Noah_Admin {
                     <th><?php esc_html_e( 'Status', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Member Since', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Stripe Sub ID', 'noah-protocol' ); ?></th>
+                    <th><?php esc_html_e( 'Products Purchased', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Actions', 'noah-protocol' ); ?></th>
                 </tr></thead>
                 <tbody>
                     <?php if ( empty( $rows ) ) : ?>
-                        <tr><td colspan="6"><?php esc_html_e( 'No members yet.', 'noah-protocol' ); ?></td></tr>
+                        <tr><td colspan="7"><?php esc_html_e( 'No members yet.', 'noah-protocol' ); ?></td></tr>
                     <?php else : foreach ( $rows as $row ) : ?>
                     <tr>
                         <td><a href="<?php echo esc_url( get_edit_user_link( $row->user_id ) ); ?>"><?php echo esc_html( $row->display_name ); ?></a></td>
@@ -432,6 +433,23 @@ class Noah_Admin {
                         <td><span class="noah-status noah-status--<?php echo esc_attr( $row->status ); ?>"><?php echo esc_html( ucfirst( $row->status ) ); ?></span></td>
                         <td><?php echo esc_html( $row->started_at ?: '--' ); ?></td>
                         <td><code><?php echo esc_html( $row->stripe_sub_id ?: '--' ); ?></code></td>
+                        <td>
+                            <?php
+                            $purchased = $this->get_purchased_products( (int) $row->user_id );
+                            if ( empty( $purchased ) ) {
+                                echo '&#8212;';
+                            } else {
+                                $links = [];
+                                foreach ( $purchased as $product_id => $product_name ) {
+                                    $edit_link = get_edit_post_link( $product_id );
+                                    $links[]   = $edit_link
+                                        ? '<a href="' . esc_url( $edit_link ) . '">' . esc_html( $product_name ) . '</a>'
+                                        : esc_html( $product_name );
+                                }
+                                echo wp_kses_post( implode( ', ', $links ) );
+                            }
+                            ?>
+                        </td>
                         <td>
                             <?php if ( 'active' === $row->status ) : ?>
                             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>"
@@ -462,6 +480,30 @@ class Noah_Admin {
             <?php endif; ?>
         </div>
         <?php
+    }
+
+    /**
+     * All products a user has ever bought, from their completed/processing
+     * orders — not just noah_subscription programs, any product. Returns
+     * [ product_id => product name ], deduplicated, in first-purchased order.
+     */
+    private function get_purchased_products( int $user_id ): array {
+        $orders = wc_get_orders( [
+            'customer_id' => $user_id,
+            'status'      => [ 'completed', 'processing' ],
+            'limit'       => -1,
+        ] );
+
+        $products = [];
+        foreach ( $orders as $order ) {
+            foreach ( $order->get_items() as $item ) {
+                $product_id = $item->get_product_id();
+                if ( $product_id && ! isset( $products[ $product_id ] ) ) {
+                    $products[ $product_id ] = $item->get_name();
+                }
+            }
+        }
+        return $products;
     }
 
     // ---------------------------------------------------------------

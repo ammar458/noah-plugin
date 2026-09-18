@@ -15,8 +15,16 @@ defined( 'ABSPATH' ) || exit;
  *      bills at the discounted amount automatically.
  *   2. setup_stripe_cycle_limit() — sets cancel_at so Stripe stops billing once
  *      the configured number of cycles is reached (programs only; membership is
- *      ongoing).
+ *      ongoing). Not used for single-cycle programs — see #4.
  *   3. cancel_stripe_subscription() — explicit cancel on the final paid cycle.
+ *   4. A single-cycle program (billing_cycles <= 1) is cancelled immediately
+ *      after creation rather than via cancel_at: Stripe requires cancel_at to
+ *      be strictly after trial_end, so ending the trial would always generate
+ *      one real invoice for a "next" cycle that shouldn't exist before a
+ *      same-moment cancel_at could take effect. Cancelling before the trial
+ *      ever ends is the only way to guarantee no second charge; the
+ *      cancelled Subscription still remains visible in Stripe for
+ *      record-keeping.
  */
 class Noah_Stripe_Recurring {
 
@@ -109,8 +117,33 @@ class Noah_Stripe_Recurring {
 
     public function create_subscription_for_program( int $user_id, int $product_id, int $order_id ): void {
         $sub_id = $this->create_subscription( $user_id, $product_id, $order_id, false );
-        if ( $sub_id ) {
-            Noah_DB::upsert_program_access( $user_id, $product_id, [ 'stripe_sub_id' => $sub_id ] );
+        if ( ! $sub_id ) {
+            return;
+        }
+        Noah_DB::upsert_program_access( $user_id, $product_id, [ 'stripe_sub_id' => $sub_id ] );
+
+        $cycles = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+        if ( $cycles <= 1 ) {
+            $this->cancel_single_cycle_subscription( $user_id, $product_id, $sub_id );
+        }
+    }
+
+    /**
+     * A single-cycle program was already paid in full through the original
+     * checkout — this Subscription only exists for Stripe-side record
+     * keeping and must never actually invoice. Cancel it immediately, before
+     * its trial can ever end, rather than relying on cancel_at (see class
+     * docblock for why cancel_at can't guarantee this on its own).
+     */
+    private function cancel_single_cycle_subscription( int $user_id, int $product_id, string $sub_id ): void {
+        if ( ! Noah_Stripe_Client::available() ) {
+            return;
+        }
+        try {
+            Noah_Stripe_Client::delete( "subscriptions/{$sub_id}" );
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancelled_single_cycle', $sub_id );
+        } catch ( \Exception $e ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_sub_cancel_error', $e->getMessage() );
         }
     }
 
@@ -294,8 +327,13 @@ class Noah_Stripe_Recurring {
             return;
         }
 
+        $cycles = (int) $access->billing_cycles;
+        if ( $cycles <= 1 ) {
+            // Already cancelled immediately in create_subscription_for_program().
+            return;
+        }
+
         $period    = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-        $cycles    = (int) $access->billing_cycles;
         $cancel_at = strtotime( "+{$cycles} " . self::period_unit( $period ), time() );
 
         if ( ! Noah_Stripe_Client::available() ) {

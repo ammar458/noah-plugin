@@ -185,24 +185,38 @@ class Noah_Stripe_Recurring {
             $params['discounts'] = [ [ 'coupon' => Noah_Discount::get_coupon_id_for_product( $product_id ) ] ];
         }
 
-        // A single-cycle program was already paid in full through the original
-        // checkout — this Subscription exists only for Stripe-side record
-        // keeping and must never actually invoice again. Voiding collection
-        // guarantees that regardless of trial/cancel timing, while leaving the
-        // Subscription in its normal active/trialing state (not cancelled).
         $cycles = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-        if ( ! $is_membership && $cycles <= 1 ) {
-            $params['pause_collection'] = [ 'behavior' => 'void' ];
-        }
 
         try {
             $subscription = Noah_Stripe_Client::post( $params, 'subscriptions' );
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_created', $subscription->id );
+
+            // A single-cycle program was already paid in full through the
+            // original checkout — this Subscription exists only for
+            // Stripe-side record keeping and must never actually invoice
+            // again. Stripe rejects pause_collection on create (only accepts
+            // it via update), so it's set with a follow-up call here. Voiding
+            // collection guarantees no charge regardless of trial/cancel
+            // timing, while leaving the Subscription in its normal
+            // active/trialing state (not cancelled).
+            if ( ! $is_membership && $cycles <= 1 ) {
+                $this->pause_single_cycle_subscription( $user_id, $product_id, $subscription->id );
+            }
+
             return $subscription->id;
         } catch ( \Exception $e ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_error', $e->getMessage() );
             $this->notify_admin_subscription_failure( $user_id, $product_id, $e->getMessage() );
             return null;
+        }
+    }
+
+    private function pause_single_cycle_subscription( int $user_id, int $product_id, string $sub_id ): void {
+        try {
+            Noah_Stripe_Client::post( [ 'pause_collection' => [ 'behavior' => 'void' ] ], "subscriptions/{$sub_id}" );
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_pause_collection_set', $sub_id );
+        } catch ( \Exception $e ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_pause_collection_error', $e->getMessage() );
         }
     }
 

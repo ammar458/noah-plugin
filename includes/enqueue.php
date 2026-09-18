@@ -54,6 +54,13 @@ add_filter( 'woocommerce_cart_item_class', function ( string $class, array $cart
     return $class;
 }, 10, 2 );
 
+// Frontend: remove the "Downloads" tab from My Account — NOAH products are
+// programs/memberships/physical items, never downloadable files.
+add_filter( 'woocommerce_account_menu_items', function ( array $items ): array {
+    unset( $items['downloads'] );
+    return $items;
+} );
+
 // Frontend: replace WooCommerce's default inline notice banners (error,
 // success, notice — every wc_add_notice() call site-wide, core and ours)
 // with a custom popup. The templates below render each message as a hidden

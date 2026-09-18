@@ -53,6 +53,21 @@ class Noah_Discount {
     }
 
     /**
+     * The member price to charge for a product: an exact per-product override
+     * when one is set (for when the percent-derived price doesn't land on a
+     * clean number, e.g. 16.67% off $1800 is $1499.94, not the intended
+     * $1500), otherwise the usual percent-derived calculation.
+     */
+    public static function get_member_price_for_product( int $product_id, float $nonmember_price ): float {
+        $override = get_post_meta( $product_id, '_noah_member_price_override', true );
+        if ( '' !== $override && is_numeric( $override ) ) {
+            return (float) $override;
+        }
+        $percent = self::get_percent_for_product( $product_id );
+        return round( $nonmember_price * ( 1 - $percent / 100 ), 2 );
+    }
+
+    /**
      * Per-product Stripe coupon, falling back to the global default. Only
      * relevant for noah_subscription products: cycle 2+ billing must use a
      * coupon whose percent_off in Stripe matches get_percent_for_product().

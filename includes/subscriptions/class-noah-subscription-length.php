@@ -34,6 +34,7 @@ class Noah_Subscription_Length {
         $is_one_time     = get_post_meta( $pid, '_noah_one_time_payment', true );
         $stripe_price_id = get_post_meta( $pid, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
         $percent_override = get_post_meta( $pid, '_noah_member_discount_percent', true );
+        $price_override   = get_post_meta( $pid, '_noah_member_price_override', true );
         $coupon_override  = get_post_meta( $pid, '_noah_stripe_coupon_id', true );
         $discount_percent = Noah_Discount::get_percent_for_product( $pid );
 
@@ -54,6 +55,16 @@ class Noah_Subscription_Length {
                        id="_noah_member_discount_percent" name="_noah_member_discount_percent"
                        value="<?php echo esc_attr( $percent_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_percent() ); ?>">
                 <span class="description"><?php esc_html_e( 'Leave blank to use the global member discount percent for this product (simple or program). Set a value here only if this product\'s member price is not the standard discount.', 'noah-protocol' ); ?></span>
+            </p>
+
+            <p class="form-field">
+                <label for="_noah_member_price_override">
+                    <?php esc_html_e( 'Member price override ($)', 'noah-protocol' ); ?>
+                </label>
+                <input type="number" min="0" step="0.01" class="short"
+                       id="_noah_member_price_override" name="_noah_member_price_override"
+                       value="<?php echo esc_attr( $price_override ); ?>" placeholder="e.g. 1500.00">
+                <span class="description"><?php esc_html_e( 'Leave blank to use the percent above. Set an exact member price here instead when the percent-derived price doesn\'t land on a clean number (e.g. 16.67% off $1800 is $1499.94, not $1500) — this value is charged exactly as entered.', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -80,12 +91,22 @@ class Noah_Subscription_Length {
                 <span class="description">
                     <?php esc_html_e( 'Price for customers without an active membership. The member price and the frontend total are both calculated automatically from this value.', 'noah-protocol' ); ?>
                     <?php if ( is_numeric( $nonmember_price ) && $nonmember_price > 0 ) : ?>
-                        <br><?php printf(
-                            /* translators: 1: member price, 2: discount percent */
-                            esc_html__( 'Member price: %1$s (%2$s%% off)', 'noah-protocol' ),
-                            wp_kses_post( wc_price( round( (float) $nonmember_price * ( 1 - $discount_percent / 100 ), 2 ) ) ),
-                            esc_html( $discount_percent )
-                        ); ?>
+                        <?php $member_price_preview = Noah_Discount::get_member_price_for_product( $pid, (float) $nonmember_price ); ?>
+                        <br>
+                        <?php if ( '' !== $price_override && is_numeric( $price_override ) ) : ?>
+                            <?php printf(
+                                /* translators: 1: member price */
+                                esc_html__( 'Member price: %1$s (exact override)', 'noah-protocol' ),
+                                wp_kses_post( wc_price( $member_price_preview ) )
+                            ); ?>
+                        <?php else : ?>
+                            <?php printf(
+                                /* translators: 1: member price, 2: discount percent */
+                                esc_html__( 'Member price: %1$s (%2$s%% off)', 'noah-protocol' ),
+                                wp_kses_post( wc_price( $member_price_preview ) ),
+                                esc_html( $discount_percent )
+                            ); ?>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </span>
             </p>
@@ -154,6 +175,14 @@ class Noah_Subscription_Length {
                 update_post_meta( $post_id, '_noah_member_discount_percent', (float) $percent_override );
             } else {
                 delete_post_meta( $post_id, '_noah_member_discount_percent' );
+            }
+        }
+        if ( isset( $_POST['_noah_member_price_override'] ) ) {
+            $price_override = wc_format_decimal( wc_clean( wp_unslash( $_POST['_noah_member_price_override'] ) ) );
+            if ( '' !== $price_override && is_numeric( $price_override ) ) {
+                update_post_meta( $post_id, '_noah_member_price_override', (float) $price_override );
+            } else {
+                delete_post_meta( $post_id, '_noah_member_price_override' );
             }
         }
         if ( isset( $_POST[ Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META ] ) ) {

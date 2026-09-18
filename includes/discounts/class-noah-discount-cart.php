@@ -45,15 +45,17 @@ class Noah_Discount_Cart {
                 continue;
             }
 
-            $percent = Noah_Discount::get_percent_for_product( $cart_item['product_id'] );
-            if ( $percent <= 0 ) {
+            $original = (float) $product->get_regular_price();
+            if ( $original <= 0 ) {
                 continue;
             }
 
-            $original = (float) $product->get_regular_price();
-            if ( $original > 0 ) {
-                $product->set_price( round( $original * ( 1 - $percent / 100 ), 2 ) );
+            $has_price_override = is_numeric( get_post_meta( $cart_item['product_id'], '_noah_member_price_override', true ) );
+            if ( ! $has_price_override && Noah_Discount::get_percent_for_product( $cart_item['product_id'] ) <= 0 ) {
+                continue;
             }
+
+            $product->set_price( Noah_Discount::get_member_price_for_product( $cart_item['product_id'], $original ) );
         }
     }
 

@@ -45,7 +45,13 @@ class Noah_Discount_Cart {
                 continue;
             }
 
-            $original = (float) $product->get_regular_price();
+            // Read the true original price from the stable DB value, not
+            // $product->get_regular_price() — we overwrite regular_price
+            // below to hide the "Save $X" badge, and woocommerce_before_
+            // calculate_totals commonly fires more than once per request.
+            // Reading the mutated in-memory value back as "original" would
+            // compound the discount further on every extra pass.
+            $original = (float) get_post_meta( $cart_item['product_id'], '_regular_price', true );
             if ( $original <= 0 ) {
                 continue;
             }

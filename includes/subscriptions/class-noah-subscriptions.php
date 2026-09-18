@@ -118,14 +118,16 @@ class Noah_Subscriptions {
         $member_price    = round( $nonmember_price * ( 1 - Noah_Discount::get_percent_for_product( $product_id ) / 100 ), 2 );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
         $is_one_time     = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
+        $period          = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
         $active_price    = $is_eligible ? $member_price : $nonmember_price;
         // Frontend total is always based on the non-member rate — an auto-calculated
         // marketing figure (e.g. "$120 for 3 weeks"), independent of what any one
         // buyer is actually charged.
         $total_price     = $cycles > 0 ? $nonmember_price * $cycles : $nonmember_price;
-        $weeks           = max( $cycles, 0 );
-        $days            = $weeks * 7;
+        $cycle_days      = [ 'day' => 1, 'week' => 7, 'month' => 30 ][ $period ] ?? 7;
+        $total_days      = max( $cycles, 0 ) * $cycle_days;
+        $period_noun     = [ 'day' => __( 'daily', 'noah-protocol' ), 'week' => __( 'weekly', 'noah-protocol' ), 'month' => __( 'monthly', 'noah-protocol' ) ][ $period ] ?? __( 'weekly', 'noah-protocol' );
         ?>
         <div class="noah-program-info">
 
@@ -137,10 +139,19 @@ class Noah_Subscriptions {
                     <div>
                         <span class="noah-meta-label"><?php esc_html_e( 'Duration', 'noah-protocol' ); ?></span>
                         <span class="noah-meta-value">
-                            <?php echo esc_html( sprintf(
-                                _n( '%1$d week (%2$d days)', '%1$d weeks (%2$d days)', $weeks, 'noah-protocol' ),
-                                $weeks, $days
-                            ) ); ?>
+                            <?php if ( 'day' === $period ) : ?>
+                                <?php echo esc_html( sprintf( _n( '%d day', '%d days', $cycles, 'noah-protocol' ), $cycles ) ); ?>
+                            <?php elseif ( 'month' === $period ) : ?>
+                                <?php echo esc_html( sprintf(
+                                    _n( '%1$d month (%2$d days)', '%1$d months (%2$d days)', $cycles, 'noah-protocol' ),
+                                    $cycles, $total_days
+                                ) ); ?>
+                            <?php else : ?>
+                                <?php echo esc_html( sprintf(
+                                    _n( '%1$d week (%2$d days)', '%1$d weeks (%2$d days)', $cycles, 'noah-protocol' ),
+                                    $cycles, $total_days
+                                ) ); ?>
+                            <?php endif; ?>
                         </span>
                     </div>
                 </div>
@@ -154,8 +165,9 @@ class Noah_Subscriptions {
                                 <?php esc_html_e( 'One-time payment', 'noah-protocol' ); ?>
                             <?php else : ?>
                                 <?php echo esc_html( sprintf(
-                                    _n( '%d weekly payment', '%d weekly payments', $cycles, 'noah-protocol' ),
-                                    $cycles
+                                    /* translators: 1: number of cycles, 2: billing cadence (daily/weekly/monthly) */
+                                    _n( '%1$d %2$s payment', '%1$d %2$s payments', $cycles, 'noah-protocol' ),
+                                    $cycles, $period_noun
                                 ) ); ?>
                             <?php endif; ?>
                         </span>
@@ -211,9 +223,12 @@ class Noah_Subscriptions {
     // ---------------------------------------------------------------
 
     public function display_cart_item_meta( array $item_data, array $cart_item ): array {
-        $product_id = $cart_item['product_id'];
-        $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
+        $product_id  = $cart_item['product_id'];
+        $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
         $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
+        $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+        $period_noun = [ 'day' => __( 'Daily', 'noah-protocol' ), 'week' => __( 'Weekly', 'noah-protocol' ), 'month' => __( 'Monthly', 'noah-protocol' ) ][ $period ] ?? __( 'Weekly', 'noah-protocol' );
+        $period_unit = [ 'day' => _n( '%d day', '%d days', $cycles, 'noah-protocol' ), 'week' => _n( '%d week', '%d weeks', $cycles, 'noah-protocol' ), 'month' => _n( '%d month', '%d months', $cycles, 'noah-protocol' ) ][ $period ] ?? _n( '%d week', '%d weeks', $cycles, 'noah-protocol' );
 
         if ( $cycles > 0 && $is_one_time ) {
             $item_data[] = [
@@ -223,10 +238,8 @@ class Noah_Subscriptions {
         } elseif ( $cycles > 0 ) {
             $item_data[] = [
                 'key'   => __( 'Billing', 'noah-protocol' ),
-                'value' => sprintf(
-                    _n( 'Weekly for %d week', 'Weekly for %d weeks', $cycles, 'noah-protocol' ),
-                    $cycles
-                ),
+                /* translators: 1: billing cadence (Daily/Weekly/Monthly), 2: cycle count phrase, e.g. "3 weeks" */
+                'value' => sprintf( __( '%1$s for %2$s', 'noah-protocol' ), $period_noun, sprintf( $period_unit, $cycles ) ),
             ];
         } elseif ( 0 === $cycles && 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
             $item_data[] = [
@@ -314,8 +327,8 @@ class Noah_Subscriptions {
     }
 
     public static function calculate_expiry( int $cycles, string $period ): string {
-        $interval = $period === 'week' ? "{$cycles} weeks" : "{$cycles} months";
-        return gmdate( 'Y-m-d H:i:s', strtotime( "+{$interval}", time() ) );
+        $unit = [ 'day' => 'days', 'week' => 'weeks', 'month' => 'months' ][ $period ] ?? 'weeks';
+        return gmdate( 'Y-m-d H:i:s', strtotime( "+{$cycles} {$unit}", time() ) );
     }
 
     // ---------------------------------------------------------------

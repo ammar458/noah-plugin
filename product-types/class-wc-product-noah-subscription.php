@@ -27,7 +27,7 @@ if ( ! class_exists( 'WC_Product_Noah_Subscription' ) ) {
 
         public function get_billing_period(): string {
             $period = $this->get_meta( '_noah_billing_period', true );
-            return in_array( $period, [ 'week', 'month' ], true ) ? $period : 'week';
+            return in_array( $period, [ 'day', 'week', 'month' ], true ) ? $period : 'week';
         }
 
         public function is_one_time_payment(): bool {

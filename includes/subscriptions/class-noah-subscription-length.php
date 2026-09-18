@@ -115,6 +115,7 @@ class Noah_Subscription_Length {
                     <?php esc_html_e( 'Billing period', 'noah-protocol' ); ?>
                 </label>
                 <select id="_noah_billing_period" name="_noah_billing_period" class="short">
+                    <option value="day"   <?php selected( $period, 'day'   ); ?>><?php esc_html_e( 'Daily',   'noah-protocol' ); ?></option>
                     <option value="week"  <?php selected( $period, 'week'  ); ?>><?php esc_html_e( 'Weekly',  'noah-protocol' ); ?></option>
                     <option value="month" <?php selected( $period, 'month' ); ?>><?php esc_html_e( 'Monthly', 'noah-protocol' ); ?></option>
                 </select>
@@ -170,7 +171,7 @@ class Noah_Subscription_Length {
             }
             if ( isset( $_POST['_noah_billing_period'] ) ) {
                 $period = sanitize_key( $_POST['_noah_billing_period'] );
-                if ( in_array( $period, [ 'week', 'month' ], true ) ) {
+                if ( in_array( $period, [ 'day', 'week', 'month' ], true ) ) {
                     update_post_meta( $post_id, '_noah_billing_period', $period );
                 }
             }

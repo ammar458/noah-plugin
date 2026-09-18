@@ -81,14 +81,21 @@ class Noah_Stripe_Recurring {
     }
 
     /**
-     * A product only needs its payment method saved for future off-session
-     * billing if it's a recurring noah_subscription — a one-time payment
-     * product never bills again, so there's nothing to save a card for.
+     * A one-time payment product still gets a real (single-cycle,
+     * auto-cancelled) Stripe Subscription created below when it has a Price
+     * ID configured — see create_subscription_for_program(). Its payment
+     * method needs to be saved/attached just like a recurring program's, so
+     * only skip this when the product has no Price ID at all (a plain
+     * one-time WooCommerce charge with no Stripe Subscription involved).
      */
     private function is_recurring_noah_subscription( ?WC_Product $product ): bool {
-        return $product
-            && 'noah_subscription' === $product->get_type()
-            && 'yes' !== get_post_meta( $product->get_id(), '_noah_one_time_payment', true );
+        if ( ! $product || 'noah_subscription' !== $product->get_type() ) {
+            return false;
+        }
+        if ( 'yes' !== get_post_meta( $product->get_id(), '_noah_one_time_payment', true ) ) {
+            return true;
+        }
+        return (bool) get_post_meta( $product->get_id(), Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
     }
 
     private function order_contains_noah_subscription( WC_Order $order ): bool {
@@ -117,10 +124,6 @@ class Noah_Stripe_Recurring {
     // ---------------------------------------------------------------
 
     public function create_subscription_for_program( int $user_id, int $product_id, int $order_id ): void {
-        if ( 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true ) ) {
-            Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_skipped', "Order #{$order_id} — one-time payment product, no recurring subscription needed" );
-            return;
-        }
         $sub_id = $this->create_subscription( $user_id, $product_id, $order_id, false );
         if ( $sub_id ) {
             Noah_DB::upsert_program_access( $user_id, $product_id, [ 'stripe_sub_id' => $sub_id ] );
@@ -171,8 +174,20 @@ class Noah_Stripe_Recurring {
             return null;
         }
 
-        $period    = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-        $trial_end = strtotime( '+1 ' . $period, time() );
+        $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+        $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+        $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
+
+        // A one-time payment already collected the FULL multi-cycle price up
+        // front at checkout, so push trial_end out past the entire covered
+        // duration (matching the cancel_at set below in
+        // setup_stripe_cycle_limit()) — otherwise Stripe would try to invoice
+        // (and charge) again after just one period, double-billing the
+        // customer. A recurring program only collected cycle 1, so trial_end
+        // is exactly one period out, matching its normal billing cadence.
+        $trial_end = $is_one_time
+            ? strtotime( "+{$cycles} " . self::period_unit( $period ), time() )
+            : strtotime( '+1 ' . $period, time() );
 
         $params = [
             'customer'               => $customer_id,
@@ -275,6 +290,10 @@ class Noah_Stripe_Recurring {
         }
     }
 
+    private static function period_unit( string $period ): string {
+        return [ 'day' => 'days', 'week' => 'weeks', 'month' => 'months' ][ $period ] ?? 'weeks';
+    }
+
     private function notify_admin_subscription_failure( int $user_id, int $product_id, string $reason ): void {
         $user    = get_userdata( $user_id );
         $product = wc_get_product( $product_id );
@@ -305,8 +324,7 @@ class Noah_Stripe_Recurring {
 
         $period    = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $cycles    = (int) $access->billing_cycles;
-        $interval  = $period === 'week' ? "{$cycles} weeks" : "{$cycles} months";
-        $cancel_at = strtotime( "+{$interval}", time() );
+        $cancel_at = strtotime( "+{$cycles} " . self::period_unit( $period ), time() );
 
         if ( ! Noah_Stripe_Client::available() ) {
             return;

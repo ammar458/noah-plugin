@@ -24,6 +24,14 @@ class Noah_Pricing {
     private function __construct() {
         add_action( 'woocommerce_before_calculate_totals', [ $this, 'apply_member_prices'  ], 99 );
         add_filter( 'woocommerce_get_price_html',          [ $this, 'show_dual_price_html' ], 10, 2 );
+
+        // One-time migration: sites that saved the old hardcoded "/week" default
+        // before {period} support existed get moved to the new placeholder-based
+        // default automatically. Only touches the option if it's still exactly
+        // the untouched old default — never overwrites custom admin text.
+        if ( 'Members pay {price}/week' === get_option( 'noah_nonmember_teaser_text' ) ) {
+            update_option( 'noah_nonmember_teaser_text', 'Members pay {price}{period}' );
+        }
     }
 
     /**
@@ -84,11 +92,18 @@ class Noah_Pricing {
                 . '</span>';
         }
 
+        $period        = get_post_meta( $product->get_id(), '_noah_billing_period', true ) ?: 'week';
+        $period_suffix = [ 'day' => '/day', 'week' => '/week', 'month' => '/month', 'onetime' => '' ][ $period ] ?? '/week';
+
         $teaser_template = get_option(
             'noah_nonmember_teaser_text',
-            __( 'Members pay {price}/week', 'noah-protocol' )
+            __( 'Members pay {price}{period}', 'noah-protocol' )
         );
-        $teaser = str_replace( '{price}', wc_price( $member_price ), $teaser_template );
+        $teaser = str_replace(
+            [ '{price}', '{period}' ],
+            [ wc_price( $member_price ), $period_suffix ],
+            $teaser_template
+        );
 
         return $price_html . ' <span class="noah-member-teaser">' . $teaser . '</span>';
     }

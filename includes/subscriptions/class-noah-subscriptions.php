@@ -130,6 +130,7 @@ class Noah_Subscriptions {
         $cycle_days      = [ 'day' => 1, 'week' => 7, 'month' => 30 ][ $period ] ?? 7;
         $total_days      = max( $cycles, 0 ) * $cycle_days;
         $period_noun     = [ 'day' => __( 'daily', 'noah-protocol' ), 'week' => __( 'weekly', 'noah-protocol' ), 'month' => __( 'monthly', 'noah-protocol' ) ][ $period ] ?? __( 'weekly', 'noah-protocol' );
+        $period_suffix   = [ 'day' => '/day', 'week' => '/week', 'month' => '/month', 'onetime' => '' ][ $period ] ?? '/week';
         ?>
         <div class="noah-program-info">
 
@@ -201,11 +202,12 @@ class Noah_Subscriptions {
                     $savings = ( $nonmember_price - $member_price ) * max( $cycles, 1 );
                     printf(
                         wp_kses(
-                            /* translators: 1: member price per week, 2: total savings */
-                            __( '<strong>Are you a member?</strong> You pay %1$s/week and save %2$s on this program.', 'noah-protocol' ),
+                            /* translators: 1: member price, 2: billing cadence suffix (e.g. "/week", blank for one-time), 3: total savings */
+                            __( '<strong>Are you a member?</strong> You pay %1$s%2$s and save %3$s on this program.', 'noah-protocol' ),
                             [ 'strong' => [] ]
                         ),
                         wp_kses_post( wc_price( $member_price ) ),
+                        esc_html( $period_suffix ),
                         wp_kses_post( wc_price( $savings ) )
                     );
                     ?>

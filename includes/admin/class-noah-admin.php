@@ -94,9 +94,9 @@ class Noah_Admin {
             [
                 'title'   => __( 'Non-member teaser text', 'noah-protocol' ),
                 'type'    => 'text',
-                'desc'    => __( 'Use {price} as a placeholder for the member price.', 'noah-protocol' ),
+                'desc'    => __( 'Use {price} for the member price and {period} for the billing cadence (e.g. "/week" — blank for a One Time Payment product).', 'noah-protocol' ),
                 'id'      => 'noah_nonmember_teaser_text',
-                'default' => __( 'Members pay {price}/week', 'noah-protocol' ),
+                'default' => __( 'Members pay {price}{period}', 'noah-protocol' ),
             ],
             [
                 'type' => 'sectionend',

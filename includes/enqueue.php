@@ -46,6 +46,7 @@ add_action( 'admin_head', function () {
                 $('._regular_price_field, ._sale_price_field, .sale_price_dates_fields').hide();
                 $('.noah-subscription-only').show();
                 $('.noah-subscription-only input').prop('disabled', false);
+                noahHandleBillingPeriod();
             } else {
                 $('._regular_price_field, ._sale_price_field').show();
                 $('.noah-subscription-only').hide();
@@ -53,8 +54,15 @@ add_action( 'admin_head', function () {
             }
         }
 
+        function noahHandleBillingPeriod() {
+            var isOnetime = $('#_noah_billing_period').val() === 'onetime';
+            $('.noah-onetime-hide').toggle(!isOnetime);
+            $('.noah-onetime-hide input').prop('disabled', isOnetime);
+        }
+
         noahHandleType();
         $('select#product-type').on('change', noahHandleType);
+        $('#_noah_billing_period').on('change', noahHandleBillingPeriod);
         setTimeout(noahHandleType, 600);
     });
     </script>

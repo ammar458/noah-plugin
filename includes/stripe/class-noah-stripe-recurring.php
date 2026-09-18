@@ -15,16 +15,13 @@ defined( 'ABSPATH' ) || exit;
  *      bills at the discounted amount automatically.
  *   2. setup_stripe_cycle_limit() — sets cancel_at so Stripe stops billing once
  *      the configured number of cycles is reached (programs only; membership is
- *      ongoing). Not used for single-cycle programs — see #4.
+ *      ongoing).
  *   3. cancel_stripe_subscription() — explicit cancel on the final paid cycle.
- *   4. A single-cycle program (billing_cycles <= 1) is created with
- *      pause_collection set to void any invoice it would ever generate.
- *      cancel_at can't safely prevent billing here: Stripe requires cancel_at
- *      to be strictly after trial_end, so ending the trial would always
- *      generate one real invoice for a "next" cycle that shouldn't exist
- *      before a same-moment cancel_at could take effect. pause_collection
- *      guarantees no charge ever fires while leaving the Subscription in its
- *      normal active/trialing state (not cancelled) for record-keeping.
+ *
+ * A product whose Billing period is "One Time Payment" (_noah_billing_period
+ * === 'onetime') never gets a Stripe Subscription at all — see the early
+ * return in create_subscription(). It's a single WooCommerce charge with no
+ * recurring billing, so there's nothing for a Subscription to represent.
  */
 class Noah_Stripe_Recurring {
 
@@ -88,10 +85,19 @@ class Noah_Stripe_Recurring {
         return $request;
     }
 
+    /**
+     * A One Time Payment product never gets a Stripe Subscription (see
+     * create_subscription()), so there's no future billing to save a card for.
+     */
+    private function is_recurring_noah_subscription( ?WC_Product $product ): bool {
+        return $product
+            && 'noah_subscription' === $product->get_type()
+            && 'onetime' !== get_post_meta( $product->get_id(), '_noah_billing_period', true );
+    }
+
     private function order_contains_noah_subscription( WC_Order $order ): bool {
         foreach ( $order->get_items() as $item ) {
-            $product = $item->get_product();
-            if ( $product && 'noah_subscription' === $product->get_type() ) {
+            if ( $this->is_recurring_noah_subscription( $item->get_product() ) ) {
                 return true;
             }
         }
@@ -103,8 +109,7 @@ class Noah_Stripe_Recurring {
             return false;
         }
         foreach ( WC()->cart->get_cart() as $cart_item ) {
-            $product = $cart_item['data'] ?? null;
-            if ( $product && 'noah_subscription' === $product->get_type() ) {
+            if ( $this->is_recurring_noah_subscription( $cart_item['data'] ?? null ) ) {
                 return true;
             }
         }
@@ -142,6 +147,11 @@ class Noah_Stripe_Recurring {
     }
 
     private function create_subscription( int $user_id, int $product_id, int $order_id, bool $is_membership ): ?string {
+        if ( ! $is_membership && 'onetime' === ( get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week' ) ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_skipped', 'One Time Payment product — no recurring subscription' );
+            return null;
+        }
+
         $price_id = get_post_meta( $product_id, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
         if ( ! $price_id ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_skipped', 'No Stripe Price ID configured on product' );
@@ -185,38 +195,14 @@ class Noah_Stripe_Recurring {
             $params['discounts'] = [ [ 'coupon' => Noah_Discount::get_coupon_id_for_product( $product_id ) ] ];
         }
 
-        $cycles = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-
         try {
             $subscription = Noah_Stripe_Client::post( $params, 'subscriptions' );
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_created', $subscription->id );
-
-            // A single-cycle program was already paid in full through the
-            // original checkout — this Subscription exists only for
-            // Stripe-side record keeping and must never actually invoice
-            // again. Stripe rejects pause_collection on create (only accepts
-            // it via update), so it's set with a follow-up call here. Voiding
-            // collection guarantees no charge regardless of trial/cancel
-            // timing, while leaving the Subscription in its normal
-            // active/trialing state (not cancelled).
-            if ( ! $is_membership && $cycles <= 1 ) {
-                $this->pause_single_cycle_subscription( $user_id, $product_id, $subscription->id );
-            }
-
             return $subscription->id;
         } catch ( \Exception $e ) {
             Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_error', $e->getMessage() );
             $this->notify_admin_subscription_failure( $user_id, $product_id, $e->getMessage() );
             return null;
-        }
-    }
-
-    private function pause_single_cycle_subscription( int $user_id, int $product_id, string $sub_id ): void {
-        try {
-            Noah_Stripe_Client::post( [ 'pause_collection' => [ 'behavior' => 'void' ] ], "subscriptions/{$sub_id}" );
-            Noah_DB::log_event( $user_id, $product_id, 'stripe_pause_collection_set', $sub_id );
-        } catch ( \Exception $e ) {
-            Noah_DB::log_event( $user_id, $product_id, 'stripe_pause_collection_error', $e->getMessage() );
         }
     }
 
@@ -326,13 +312,7 @@ class Noah_Stripe_Recurring {
             return;
         }
 
-        $cycles = (int) $access->billing_cycles;
-        if ( $cycles <= 1 ) {
-            // Already created with pause_collection in create_subscription() —
-            // it can never bill, so no cancel_at is needed.
-            return;
-        }
-
+        $cycles    = (int) $access->billing_cycles;
         $period    = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $cancel_at = strtotime( "+{$cycles} " . self::period_unit( $period ), time() );
 

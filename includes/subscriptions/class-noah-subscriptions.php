@@ -113,11 +113,14 @@ class Noah_Subscriptions {
 
     private function render_program_info_block( WC_Product $product ): void {
         $product_id      = $product->get_id();
-        $cycles          = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
         $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
         $member_price    = Noah_Discount::get_member_price_for_product( $product_id, $nonmember_price );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
         $period          = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+        $is_onetime      = 'onetime' === $period;
+        // Billing cycles/period don't apply to a One Time Payment product — its
+        // duration is described on the product page, not tracked here.
+        $cycles          = $is_onetime ? 0 : (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
         $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
         $active_price    = $is_eligible ? $member_price : $nonmember_price;
         // Frontend total is always based on the non-member rate — an auto-calculated
@@ -130,7 +133,17 @@ class Noah_Subscriptions {
         ?>
         <div class="noah-program-info">
 
-            <?php if ( $cycles > 0 ) : ?>
+            <?php if ( $is_onetime ) : ?>
+            <div class="noah-program-meta">
+                <div class="noah-meta-item">
+                    <span class="noah-meta-icon" aria-hidden="true">&#128179;</span>
+                    <div>
+                        <span class="noah-meta-label"><?php esc_html_e( 'Program total', 'noah-protocol' ); ?></span>
+                        <span class="noah-meta-value noah-meta-total"><?php echo wp_kses_post( wc_price( $total_price ) ); ?></span>
+                    </div>
+                </div>
+            </div>
+            <?php elseif ( $cycles > 0 ) : ?>
             <div class="noah-program-meta">
 
                 <div class="noah-meta-item">
@@ -218,9 +231,18 @@ class Noah_Subscriptions {
     // ---------------------------------------------------------------
 
     public function display_cart_item_meta( array $item_data, array $cart_item ): array {
-        $product_id  = $cart_item['product_id'];
+        $product_id = $cart_item['product_id'];
+        $period     = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+
+        if ( 'onetime' === $period ) {
+            $item_data[] = [
+                'key'   => __( 'Billing', 'noah-protocol' ),
+                'value' => __( 'One-time payment', 'noah-protocol' ),
+            ];
+            return $item_data;
+        }
+
         $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
-        $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $period_noun = [ 'day' => __( 'Daily', 'noah-protocol' ), 'week' => __( 'Weekly', 'noah-protocol' ), 'month' => __( 'Monthly', 'noah-protocol' ) ][ $period ] ?? __( 'Weekly', 'noah-protocol' );
         $period_unit = [ 'day' => _n( '%d day', '%d days', $cycles, 'noah-protocol' ), 'week' => _n( '%d week', '%d weeks', $cycles, 'noah-protocol' ), 'month' => _n( '%d month', '%d months', $cycles, 'noah-protocol' ) ][ $period ] ?? _n( '%d week', '%d weeks', $cycles, 'noah-protocol' );
 
@@ -275,9 +297,19 @@ class Noah_Subscriptions {
                 continue;
             }
 
-            $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-            $period     = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-            $expires_at = self::calculate_expiry( $cycles, $period );
+            $period = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+
+            // A One Time Payment program (e.g. an onsite/in-person program whose
+            // duration is already described on the product page) has no billing
+            // cycles and no automatic access expiry — access simply doesn't expire
+            // on its own.
+            if ( 'onetime' === $period ) {
+                $cycles     = 1;
+                $expires_at = null;
+            } else {
+                $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+                $expires_at = self::calculate_expiry( $cycles, $period );
+            }
 
             Noah_DB::upsert_program_access( $user_id, $product_id, [
                 'order_id'       => $order_id,
@@ -288,7 +320,7 @@ class Noah_Subscriptions {
                 'expires_at'     => $expires_at,
             ] );
 
-            Noah_DB::log_event( $user_id, $product_id, 'program_access_granted', "Order #{$order_id} | {$cycles} {$period}(s)" );
+            Noah_DB::log_event( $user_id, $product_id, 'program_access_granted', "Order #{$order_id} | " . ( 'onetime' === $period ? 'one-time payment' : "{$cycles} {$period}(s)" ) );
             do_action( 'noah_program_subscription_started', $user_id, $product_id, $order_id );
         }
     }

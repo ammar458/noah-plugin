@@ -110,24 +110,24 @@ class Noah_Subscription_Length {
                 </span>
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-onetime-hide">
                 <label for="_noah_stripe_coupon_id">
                     <?php esc_html_e( 'Stripe Coupon ID override', 'noah-protocol' ); ?>
                 </label>
                 <input type="text" class="short"
                        id="_noah_stripe_coupon_id" name="_noah_stripe_coupon_id"
                        value="<?php echo esc_attr( $coupon_override ); ?>" placeholder="<?php echo esc_attr( Noah_Discount::get_coupon_id() ); ?>">
-                <span class="description"><?php esc_html_e( 'Only needed if the discount override above differs from the global percent: create a matching Coupon in the Stripe Dashboard and enter its ID here, so cycle 2+ billing matches the price shown at checkout. Leave blank to use the global coupon.', 'noah-protocol' ); ?></span>
+                <span class="description"><?php esc_html_e( 'Only needed if the discount override above differs from the global percent: create a matching Coupon in the Stripe Dashboard and enter its ID here, so cycle 2+ billing matches the price shown at checkout. Leave blank to use the global coupon. Not used when Billing period is "One Time Payment" — there is no cycle 2+.', 'noah-protocol' ); ?></span>
             </p>
 
-            <p class="form-field">
+            <p class="form-field noah-onetime-hide">
                 <label for="_noah_billing_cycles">
                     <?php esc_html_e( 'Number of billing cycles', 'noah-protocol' ); ?>
                 </label>
                 <input type="number" min="0" step="1" class="short"
                        id="_noah_billing_cycles" name="_noah_billing_cycles"
                        value="<?php echo esc_attr( $cycles ); ?>" placeholder="0">
-                <span class="description"><?php esc_html_e( 'e.g. 3 = charge 3 times then stop. 0 = ongoing (membership plan).', 'noah-protocol' ); ?></span>
+                <span class="description"><?php esc_html_e( 'e.g. 3 = charge 3 times then stop. 0 = ongoing (membership plan). Not used when Billing period is "One Time Payment".', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -135,10 +135,12 @@ class Noah_Subscription_Length {
                     <?php esc_html_e( 'Billing period', 'noah-protocol' ); ?>
                 </label>
                 <select id="_noah_billing_period" name="_noah_billing_period" class="short">
-                    <option value="day"   <?php selected( $period, 'day'   ); ?>><?php esc_html_e( 'Daily',   'noah-protocol' ); ?></option>
-                    <option value="week"  <?php selected( $period, 'week'  ); ?>><?php esc_html_e( 'Weekly',  'noah-protocol' ); ?></option>
-                    <option value="month" <?php selected( $period, 'month' ); ?>><?php esc_html_e( 'Monthly', 'noah-protocol' ); ?></option>
+                    <option value="day"     <?php selected( $period, 'day'     ); ?>><?php esc_html_e( 'Daily',            'noah-protocol' ); ?></option>
+                    <option value="week"    <?php selected( $period, 'week'    ); ?>><?php esc_html_e( 'Weekly',           'noah-protocol' ); ?></option>
+                    <option value="month"   <?php selected( $period, 'month'   ); ?>><?php esc_html_e( 'Monthly',          'noah-protocol' ); ?></option>
+                    <option value="onetime" <?php selected( $period, 'onetime' ); ?>><?php esc_html_e( 'One Time Payment', 'noah-protocol' ); ?></option>
                 </select>
+                <span class="description"><?php esc_html_e( 'One Time Payment: a single charge at checkout, no recurring Stripe billing, no automatic access expiry — use this for onsite/in-person programs where duration is already described on the product page.', 'noah-protocol' ); ?></span>
             </p>
 
             <p class="form-field">
@@ -190,7 +192,7 @@ class Noah_Subscription_Length {
             }
             if ( isset( $_POST['_noah_billing_period'] ) ) {
                 $period = sanitize_key( $_POST['_noah_billing_period'] );
-                if ( in_array( $period, [ 'day', 'week', 'month' ], true ) ) {
+                if ( in_array( $period, [ 'day', 'week', 'month', 'onetime' ], true ) ) {
                     update_post_meta( $post_id, '_noah_billing_period', $period );
                 }
             }

@@ -49,6 +49,9 @@ add_action( 'admin_head', function () {
     .noah-field .woocommerce-help-tip {
         margin: 0;
     }
+    .noah-field .description {
+        margin-left: 111px;
+    }
     </style>
     <script type="text/javascript">
     jQuery(document).ready(function($) {

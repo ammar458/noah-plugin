@@ -55,7 +55,15 @@ class Noah_Discount_Cart {
                 continue;
             }
 
-            $product->set_price( Noah_Discount::get_member_price_for_product( $cart_item['product_id'], $original ) );
+            $member_price = Noah_Discount::get_member_price_for_product( $cart_item['product_id'], $original );
+
+            // Setting only the price (not regular_price) makes WooCommerce
+            // treat this as an on-sale item, showing a "Save $X" comparison
+            // against the untouched regular price in the cart/checkout UI.
+            // For simple products we want the discount applied silently —
+            // just the discounted price, no strikethrough/savings badge.
+            $product->set_regular_price( $member_price );
+            $product->set_price( $member_price );
         }
     }
 

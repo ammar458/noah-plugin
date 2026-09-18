@@ -80,10 +80,20 @@ class Noah_Stripe_Recurring {
         return $request;
     }
 
+    /**
+     * A product only needs its payment method saved for future off-session
+     * billing if it's a recurring noah_subscription — a one-time payment
+     * product never bills again, so there's nothing to save a card for.
+     */
+    private function is_recurring_noah_subscription( ?WC_Product $product ): bool {
+        return $product
+            && 'noah_subscription' === $product->get_type()
+            && 'yes' !== get_post_meta( $product->get_id(), '_noah_one_time_payment', true );
+    }
+
     private function order_contains_noah_subscription( WC_Order $order ): bool {
         foreach ( $order->get_items() as $item ) {
-            $product = $item->get_product();
-            if ( $product && 'noah_subscription' === $product->get_type() ) {
+            if ( $this->is_recurring_noah_subscription( $item->get_product() ) ) {
                 return true;
             }
         }
@@ -95,8 +105,7 @@ class Noah_Stripe_Recurring {
             return false;
         }
         foreach ( WC()->cart->get_cart() as $cart_item ) {
-            $product = $cart_item['data'] ?? null;
-            if ( $product && 'noah_subscription' === $product->get_type() ) {
+            if ( $this->is_recurring_noah_subscription( $cart_item['data'] ?? null ) ) {
                 return true;
             }
         }
@@ -108,6 +117,10 @@ class Noah_Stripe_Recurring {
     // ---------------------------------------------------------------
 
     public function create_subscription_for_program( int $user_id, int $product_id, int $order_id ): void {
+        if ( 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true ) ) {
+            Noah_DB::log_event( $user_id, $product_id, 'stripe_subscription_skipped', "Order #{$order_id} — one-time payment product, no recurring subscription needed" );
+            return;
+        }
         $sub_id = $this->create_subscription( $user_id, $product_id, $order_id, false );
         if ( $sub_id ) {
             Noah_DB::upsert_program_access( $user_id, $product_id, [ 'stripe_sub_id' => $sub_id ] );

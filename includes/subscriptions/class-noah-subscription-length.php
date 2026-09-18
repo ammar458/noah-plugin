@@ -31,6 +31,7 @@ class Noah_Subscription_Length {
         $cycles          = get_post_meta( $pid, '_noah_billing_cycles',    true );
         $period          = get_post_meta( $pid, '_noah_billing_period',    true ) ?: 'week';
         $is_membership   = get_post_meta( $pid, '_noah_is_membership_plan', true );
+        $is_one_time     = get_post_meta( $pid, '_noah_one_time_payment', true );
         $stripe_price_id = get_post_meta( $pid, Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
         $percent_override = get_post_meta( $pid, '_noah_member_discount_percent', true );
         $coupon_override  = get_post_meta( $pid, '_noah_stripe_coupon_id', true );
@@ -120,6 +121,15 @@ class Noah_Subscription_Length {
             </p>
 
             <p class="form-field">
+                <label for="_noah_one_time_payment">
+                    <?php esc_html_e( 'Charge as a one-time payment', 'noah-protocol' ); ?>
+                </label>
+                <input type="checkbox" id="_noah_one_time_payment" name="_noah_one_time_payment"
+                       value="yes" <?php checked( $is_one_time, 'yes' ); ?>>
+                <span class="description"><?php esc_html_e( 'Collect the full program price up front in a single charge instead of recurring weekly/monthly installments. No Stripe Subscription is created — the customer\'s card is charged once at checkout. The billing cycles/period fields above still determine how long access lasts. Not used for membership plans, which always bill on an ongoing basis.', 'noah-protocol' ); ?></span>
+            </p>
+
+            <p class="form-field">
                 <label for="_noah_is_membership_plan">
                     <?php esc_html_e( 'This product grants NOAH Membership', 'noah-protocol' ); ?>
                 </label>
@@ -172,6 +182,9 @@ class Noah_Subscription_Length {
                     delete_post_meta( $post_id, '_noah_stripe_coupon_id' );
                 }
             }
+            $one_time_payment = ! empty( $_POST['_noah_one_time_payment'] ) ? 'yes' : 'no';
+            update_post_meta( $post_id, '_noah_one_time_payment', $one_time_payment );
+
             $is_membership_plan = ! empty( $_POST['_noah_is_membership_plan'] ) ? 'yes' : 'no';
             update_post_meta( $post_id, '_noah_is_membership_plan', $is_membership_plan );
             if ( 'yes' === $is_membership_plan ) {

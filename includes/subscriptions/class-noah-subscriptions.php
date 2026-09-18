@@ -117,6 +117,7 @@ class Noah_Subscriptions {
         $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
         $member_price    = round( $nonmember_price * ( 1 - Noah_Discount::get_percent_for_product( $product_id ) / 100 ), 2 );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
+        $is_one_time     = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
         $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
         $active_price    = $is_eligible ? $member_price : $nonmember_price;
         // Frontend total is always based on the non-member rate — an auto-calculated
@@ -149,10 +150,14 @@ class Noah_Subscriptions {
                     <div>
                         <span class="noah-meta-label"><?php esc_html_e( 'Billing', 'noah-protocol' ); ?></span>
                         <span class="noah-meta-value">
-                            <?php echo esc_html( sprintf(
-                                _n( '%d weekly payment', '%d weekly payments', $cycles, 'noah-protocol' ),
-                                $cycles
-                            ) ); ?>
+                            <?php if ( $is_one_time ) : ?>
+                                <?php esc_html_e( 'One-time payment', 'noah-protocol' ); ?>
+                            <?php else : ?>
+                                <?php echo esc_html( sprintf(
+                                    _n( '%d weekly payment', '%d weekly payments', $cycles, 'noah-protocol' ),
+                                    $cycles
+                                ) ); ?>
+                            <?php endif; ?>
                         </span>
                     </div>
                 </div>
@@ -191,7 +196,7 @@ class Noah_Subscriptions {
             </div>
             <?php endif; ?>
 
-            <?php if ( $cycles > 0 ) : ?>
+            <?php if ( $cycles > 0 && ! $is_one_time ) : ?>
             <p class="noah-auto-cancel-note">
                 <?php esc_html_e( 'Subscription cancels automatically when the program ends. No action required.', 'noah-protocol' ); ?>
             </p>
@@ -208,8 +213,14 @@ class Noah_Subscriptions {
     public function display_cart_item_meta( array $item_data, array $cart_item ): array {
         $product_id = $cart_item['product_id'];
         $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
+        $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
 
-        if ( $cycles > 0 ) {
+        if ( $cycles > 0 && $is_one_time ) {
+            $item_data[] = [
+                'key'   => __( 'Billing', 'noah-protocol' ),
+                'value' => __( 'One-time payment', 'noah-protocol' ),
+            ];
+        } elseif ( $cycles > 0 ) {
             $item_data[] = [
                 'key'   => __( 'Billing', 'noah-protocol' ),
                 'value' => sprintf(
@@ -262,15 +273,19 @@ class Noah_Subscriptions {
                 continue;
             }
 
-            $cycles = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-            $period = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-            $expires_at = self::calculate_expiry( $cycles, $period );
+            $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+            $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+            $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
+            $expires_at  = self::calculate_expiry( $cycles, $period );
 
+            // A one-time payment collects the full price up front, so it's fully
+            // paid immediately — no Stripe subscription exists to fire renewal
+            // webhooks and increment cycles_paid over time.
             Noah_DB::upsert_program_access( $user_id, $product_id, [
                 'order_id'       => $order_id,
                 'status'         => 'active',
                 'billing_cycles' => $cycles,
-                'cycles_paid'    => 1,
+                'cycles_paid'    => $is_one_time ? $cycles : 1,
                 'started_at'     => current_time( 'mysql' ),
                 'expires_at'     => $expires_at,
             ] );

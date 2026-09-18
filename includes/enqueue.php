@@ -23,6 +23,27 @@ add_action( 'wp_enqueue_scripts', function () {
     }
 } );
 
+// Frontend: hide the quantity selector for products in the Retreats/Programs
+// categories — these are always purchased as a single unit (a program/retreat
+// seat), not a stock-counted item.
+add_filter( 'body_class', function ( array $classes ): array {
+    if ( is_product() ) {
+        $product_id = get_queried_object_id();
+        if ( $product_id && has_term( [ 'retreats', 'programs' ], 'product_cat', $product_id ) ) {
+            $classes[] = 'noah-hide-quantity';
+        }
+    }
+    return $classes;
+} );
+
+add_filter( 'woocommerce_cart_item_class', function ( string $class, array $cart_item ): string {
+    $product_id = $cart_item['product_id'] ?? 0;
+    if ( $product_id && has_term( [ 'retreats', 'programs' ], 'product_cat', $product_id ) ) {
+        $class .= ' noah-hide-quantity-row';
+    }
+    return $class;
+}, 10, 2 );
+
 // Admin: product edit page only
 add_action( 'admin_head', function () {
     $screen = get_current_screen();

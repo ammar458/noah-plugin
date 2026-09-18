@@ -195,3 +195,7 @@
 .noah-status--cancelled,
 .noah-status--revoked   { background: #f8d7da; color: #721c24; }
 .noah-status--expired   { background: #fff3cd; color: #856404; }
+
+/* ── Hide quantity selector: Retreats/Programs categories ────── */
+body.noah-hide-quantity form.cart .quantity { display: none !important; }
+tr.noah-hide-quantity-row .product-quantity .quantity { display: none !important; }

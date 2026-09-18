@@ -54,6 +54,20 @@ add_filter( 'woocommerce_cart_item_class', function ( string $class, array $cart
     return $class;
 }, 10, 2 );
 
+// Frontend: replace WooCommerce's default inline notice banners (error,
+// success, notice — every wc_add_notice() call site-wide, core and ours)
+// with a custom popup. The templates below render each message as a hidden
+// data node; assets/js/frontend.js turns those into the popup.
+add_filter( 'woocommerce_locate_template', function ( string $template, string $template_name, string $template_path ): string {
+    if ( in_array( $template_name, [ 'notices/error.php', 'notices/success.php', 'notices/notice.php' ], true ) ) {
+        $override = NOAH_PATH . 'woocommerce/' . $template_name;
+        if ( file_exists( $override ) ) {
+            return $override;
+        }
+    }
+    return $template;
+}, 10, 3 );
+
 // Admin: product edit page only
 add_action( 'admin_head', function () {
     $screen = get_current_screen();

@@ -50,6 +50,10 @@ class Noah_Membership {
 
         // Customer self-service cancellation from the My Account membership tab
         add_action( 'admin_post_noah_customer_cancel_membership', [ $this, 'handle_customer_cancel_membership' ] );
+
+        // Block an already-active member from buying the membership product again
+        add_filter( 'woocommerce_add_to_cart_validation', [ $this, 'block_duplicate_membership_purchase' ], 10, 2 );
+        add_action( 'woocommerce_check_cart_items',        [ $this, 'block_duplicate_membership_in_cart'  ] );
     }
 
     // ---------------------------------------------------------------
@@ -125,6 +129,42 @@ class Noah_Membership {
             return false;
         }
         return Noah_DB::is_active_member( $user_id );
+    }
+
+    /**
+     * An already-active member can't buy the membership product again —
+     * there's nothing more to grant, and it would create a second Stripe
+     * Subscription billing them twice for the same membership.
+     */
+    public function block_duplicate_membership_purchase( bool $passed, int $product_id ): bool {
+        if ( ! $passed || 'yes' !== get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
+            return $passed;
+        }
+        if ( self::is_member( get_current_user_id() ) ) {
+            wc_add_notice( __( 'You already have an active NOAH Membership.', 'noah-protocol' ), 'error' );
+            return false;
+        }
+        return $passed;
+    }
+
+    /**
+     * Catches the membership product already sitting in the cart before the
+     * customer became a member (e.g. added in another tab, or membership
+     * was granted by an admin in the meantime) — re-checked on every
+     * cart/checkout page load and again inside WooCommerce's own checkout
+     * processing, so it can't be bypassed by skipping the add-to-cart step.
+     */
+    public function block_duplicate_membership_in_cart(): void {
+        if ( ! function_exists( 'WC' ) || ! WC()->cart || ! self::is_member( get_current_user_id() ) ) {
+            return;
+        }
+        foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+            $product_id = $cart_item['product_id'] ?? 0;
+            if ( $product_id && 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true ) ) {
+                WC()->cart->remove_cart_item( $cart_item_key );
+                wc_add_notice( __( 'You already have an active NOAH Membership — the membership item has been removed from your cart.', 'noah-protocol' ), 'error' );
+            }
+        }
     }
 
     // ---------------------------------------------------------------

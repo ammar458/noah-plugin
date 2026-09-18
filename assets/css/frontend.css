@@ -224,20 +224,31 @@ tr.noah-hide-quantity-row .product-quantity .quantity { display: none !important
     overflow-y: auto;
 }
 
-.noah-notice-close {
+/* all: unset strips the active theme's button styling (pill shape,
+   background color, min-width, etc.) before we apply our own minimal
+   icon-button look. */
+.noah-notice-modal .noah-notice-close {
+    all: unset;
     position: absolute;
-    top: 8px;
-    right: 12px;
-    background: none;
-    border: none;
-    font-size: 24px;
+    top: 6px;
+    right: 10px;
+    box-sizing: border-box;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 20px;
     line-height: 1;
     cursor: pointer;
     color: #888;
-    padding: 4px 8px;
 }
 
-.noah-notice-close:hover { color: #333; }
+.noah-notice-modal .noah-notice-close:hover {
+    background: #f0f0f0;
+    color: #333;
+}
 
 .noah-notice-item {
     padding: 12px 14px;

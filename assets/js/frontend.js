@@ -25,13 +25,26 @@
         closeBtn.innerHTML = '&times;';
         modal.appendChild( closeBtn );
 
+        // WooCommerce sometimes prints the same notice more than once in a
+        // single request (e.g. a validation notice re-rendered when the
+        // cart/checkout fragment refreshes right after) — de-dupe by exact
+        // message text so the popup doesn't repeat itself.
+        var seen = {};
         nodes.forEach( function ( node ) {
             var type = node.getAttribute( 'data-type' ) || 'notice';
+            var html = node.innerHTML.trim();
+            var key  = type + '|' + html;
+            node.parentNode.removeChild( node );
+
+            if ( seen[ key ] ) {
+                return;
+            }
+            seen[ key ] = true;
+
             var item = document.createElement( 'div' );
             item.className = 'noah-notice-item noah-notice-item--' + type;
-            item.innerHTML = node.innerHTML;
+            item.innerHTML = html;
             modal.appendChild( item );
-            node.parentNode.removeChild( node );
         } );
 
         overlay.appendChild( modal );

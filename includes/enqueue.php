@@ -35,20 +35,19 @@ add_action( 'admin_head', function () {
     .noah-subscription-only { display: none; }
     /* Our field labels run longer than WooCommerce's default 150px label
        column (e.g. "Member discount override (%)"), which otherwise wraps
-       them across multiple lines. Stack label above input instead so the
-       label always reads on one line. */
+       them across multiple lines. Widen the label column instead so label
+       and input stay side by side on one line, same as WooCommerce's own
+       fields — just wide enough that the text and its tooltip icon never wrap. */
     .noah-field label {
-        float: none;
-        width: auto;
+        width: 260px;
         white-space: nowrap;
-        display: block;
+        display: flex;
+        align-items: center;
+        gap: 4px;
         padding-top: 0;
-        margin-bottom: 4px;
     }
-    .noah-field input,
-    .noah-field select {
-        float: none;
-        margin-left: 0 !important;
+    .noah-field .woocommerce-help-tip {
+        margin: 0;
     }
     </style>
     <script type="text/javascript">

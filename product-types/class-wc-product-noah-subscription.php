@@ -30,10 +30,6 @@ if ( ! class_exists( 'WC_Product_Noah_Subscription' ) ) {
             return in_array( $period, [ 'day', 'week', 'month' ], true ) ? $period : 'week';
         }
 
-        public function is_one_time_payment(): bool {
-            return 'yes' === $this->get_meta( '_noah_one_time_payment', true );
-        }
-
         public function add_to_cart_text(): string {
             return apply_filters(
                 'woocommerce_product_add_to_cart_text',

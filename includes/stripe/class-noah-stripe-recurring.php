@@ -80,27 +80,10 @@ class Noah_Stripe_Recurring {
         return $request;
     }
 
-    /**
-     * A one-time payment product still gets a real (single-cycle,
-     * auto-cancelled) Stripe Subscription created below when it has a Price
-     * ID configured — see create_subscription_for_program(). Its payment
-     * method needs to be saved/attached just like a recurring program's, so
-     * only skip this when the product has no Price ID at all (a plain
-     * one-time WooCommerce charge with no Stripe Subscription involved).
-     */
-    private function is_recurring_noah_subscription( ?WC_Product $product ): bool {
-        if ( ! $product || 'noah_subscription' !== $product->get_type() ) {
-            return false;
-        }
-        if ( 'yes' !== get_post_meta( $product->get_id(), '_noah_one_time_payment', true ) ) {
-            return true;
-        }
-        return (bool) get_post_meta( $product->get_id(), Noah_Stripe_Customer_Sync::STRIPE_PRICE_ID_META, true );
-    }
-
     private function order_contains_noah_subscription( WC_Order $order ): bool {
         foreach ( $order->get_items() as $item ) {
-            if ( $this->is_recurring_noah_subscription( $item->get_product() ) ) {
+            $product = $item->get_product();
+            if ( $product && 'noah_subscription' === $product->get_type() ) {
                 return true;
             }
         }
@@ -112,7 +95,8 @@ class Noah_Stripe_Recurring {
             return false;
         }
         foreach ( WC()->cart->get_cart() as $cart_item ) {
-            if ( $this->is_recurring_noah_subscription( $cart_item['data'] ?? null ) ) {
+            $product = $cart_item['data'] ?? null;
+            if ( $product && 'noah_subscription' === $product->get_type() ) {
                 return true;
             }
         }
@@ -174,20 +158,8 @@ class Noah_Stripe_Recurring {
             return null;
         }
 
-        $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-        $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-        $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
-
-        // A one-time payment already collected the FULL multi-cycle price up
-        // front at checkout, so push trial_end out past the entire covered
-        // duration (matching the cancel_at set below in
-        // setup_stripe_cycle_limit()) — otherwise Stripe would try to invoice
-        // (and charge) again after just one period, double-billing the
-        // customer. A recurring program only collected cycle 1, so trial_end
-        // is exactly one period out, matching its normal billing cadence.
-        $trial_end = $is_one_time
-            ? strtotime( "+{$cycles} " . self::period_unit( $period ), time() )
-            : strtotime( '+1 ' . $period, time() );
+        $period    = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+        $trial_end = strtotime( '+1 ' . $period, time() );
 
         $params = [
             'customer'               => $customer_id,

@@ -117,7 +117,6 @@ class Noah_Subscriptions {
         $nonmember_price = (float) get_post_meta( $product_id, '_noah_nonmember_price', true );
         $member_price    = Noah_Discount::get_member_price_for_product( $product_id, $nonmember_price );
         $is_membership   = 'yes' === get_post_meta( $product_id, '_noah_is_membership_plan', true );
-        $is_one_time     = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
         $period          = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $is_eligible     = Noah_Discount::is_eligible( get_current_user_id() );
         $active_price    = $is_eligible ? $member_price : $nonmember_price;
@@ -161,15 +160,11 @@ class Noah_Subscriptions {
                     <div>
                         <span class="noah-meta-label"><?php esc_html_e( 'Billing', 'noah-protocol' ); ?></span>
                         <span class="noah-meta-value">
-                            <?php if ( $is_one_time ) : ?>
-                                <?php esc_html_e( 'One-time payment', 'noah-protocol' ); ?>
-                            <?php else : ?>
-                                <?php echo esc_html( sprintf(
-                                    /* translators: 1: number of cycles, 2: billing cadence (daily/weekly/monthly) */
-                                    _n( '%1$d %2$s payment', '%1$d %2$s payments', $cycles, 'noah-protocol' ),
-                                    $cycles, $period_noun
-                                ) ); ?>
-                            <?php endif; ?>
+                            <?php echo esc_html( sprintf(
+                                /* translators: 1: number of cycles, 2: billing cadence (daily/weekly/monthly) */
+                                _n( '%1$d %2$s payment', '%1$d %2$s payments', $cycles, 'noah-protocol' ),
+                                $cycles, $period_noun
+                            ) ); ?>
                         </span>
                     </div>
                 </div>
@@ -208,7 +203,7 @@ class Noah_Subscriptions {
             </div>
             <?php endif; ?>
 
-            <?php if ( $cycles > 0 && ! $is_one_time ) : ?>
+            <?php if ( $cycles > 0 ) : ?>
             <p class="noah-auto-cancel-note">
                 <?php esc_html_e( 'Subscription cancels automatically when the program ends. No action required.', 'noah-protocol' ); ?>
             </p>
@@ -225,17 +220,11 @@ class Noah_Subscriptions {
     public function display_cart_item_meta( array $item_data, array $cart_item ): array {
         $product_id  = $cart_item['product_id'];
         $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true );
-        $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
         $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
         $period_noun = [ 'day' => __( 'Daily', 'noah-protocol' ), 'week' => __( 'Weekly', 'noah-protocol' ), 'month' => __( 'Monthly', 'noah-protocol' ) ][ $period ] ?? __( 'Weekly', 'noah-protocol' );
         $period_unit = [ 'day' => _n( '%d day', '%d days', $cycles, 'noah-protocol' ), 'week' => _n( '%d week', '%d weeks', $cycles, 'noah-protocol' ), 'month' => _n( '%d month', '%d months', $cycles, 'noah-protocol' ) ][ $period ] ?? _n( '%d week', '%d weeks', $cycles, 'noah-protocol' );
 
-        if ( $cycles > 0 && $is_one_time ) {
-            $item_data[] = [
-                'key'   => __( 'Billing', 'noah-protocol' ),
-                'value' => __( 'One-time payment', 'noah-protocol' ),
-            ];
-        } elseif ( $cycles > 0 ) {
+        if ( $cycles > 0 ) {
             $item_data[] = [
                 'key'   => __( 'Billing', 'noah-protocol' ),
                 /* translators: 1: billing cadence (Daily/Weekly/Monthly), 2: cycle count phrase, e.g. "3 weeks" */
@@ -286,19 +275,15 @@ class Noah_Subscriptions {
                 continue;
             }
 
-            $cycles      = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
-            $period      = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
-            $is_one_time = 'yes' === get_post_meta( $product_id, '_noah_one_time_payment', true );
-            $expires_at  = self::calculate_expiry( $cycles, $period );
+            $cycles     = (int) get_post_meta( $product_id, '_noah_billing_cycles', true ) ?: 1;
+            $period     = get_post_meta( $product_id, '_noah_billing_period', true ) ?: 'week';
+            $expires_at = self::calculate_expiry( $cycles, $period );
 
-            // A one-time payment collects the full price up front, so it's fully
-            // paid immediately — no Stripe subscription exists to fire renewal
-            // webhooks and increment cycles_paid over time.
             Noah_DB::upsert_program_access( $user_id, $product_id, [
                 'order_id'       => $order_id,
                 'status'         => 'active',
                 'billing_cycles' => $cycles,
-                'cycles_paid'    => $is_one_time ? $cycles : 1,
+                'cycles_paid'    => 1,
                 'started_at'     => current_time( 'mysql' ),
                 'expires_at'     => $expires_at,
             ] );

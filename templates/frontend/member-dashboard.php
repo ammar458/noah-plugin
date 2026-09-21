@@ -87,7 +87,7 @@ $is_active = Noah_Membership::is_member( $user_id );
     <?php else : ?>
 
         <p><?php esc_html_e( 'You do not have an active NOAH Membership.', 'noah-protocol' ); ?></p>
-        <a href="<?php echo esc_url( wc_get_page_permalink( 'shop' ) ); ?>" class="button">
+        <a href="<?php echo esc_url( 'https://noahprotocol.com/en/pricing/' ); ?>" class="button">
             <?php esc_html_e( 'Become a Member', 'noah-protocol' ); ?>
         </a>
 

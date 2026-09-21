@@ -427,6 +427,7 @@ class Noah_Admin {
                     <th><?php esc_html_e( 'Name', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Email', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Status', 'noah-protocol' ); ?></th>
+                    <th><?php esc_html_e( 'Source', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Member Since', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Stripe Sub ID', 'noah-protocol' ); ?></th>
                     <th><?php esc_html_e( 'Products Purchased', 'noah-protocol' ); ?></th>
@@ -434,12 +435,13 @@ class Noah_Admin {
                 </tr></thead>
                 <tbody>
                     <?php if ( empty( $rows ) ) : ?>
-                        <tr><td colspan="7"><?php esc_html_e( 'No members yet.', 'noah-protocol' ); ?></td></tr>
+                        <tr><td colspan="8"><?php esc_html_e( 'No members yet.', 'noah-protocol' ); ?></td></tr>
                     <?php else : foreach ( $rows as $row ) : ?>
                     <tr>
                         <td><a href="<?php echo esc_url( get_edit_user_link( $row->user_id ) ); ?>"><?php echo esc_html( $row->display_name ); ?></a></td>
                         <td><?php echo esc_html( $row->user_email ); ?></td>
                         <td><span class="noah-status noah-status--<?php echo esc_attr( $row->status ); ?>"><?php echo esc_html( ucfirst( $row->status ) ); ?></span></td>
+                        <td><?php echo wp_kses_post( $this->render_member_source( $row ) ); ?></td>
                         <td><?php echo esc_html( $row->started_at ?: '--' ); ?></td>
                         <td><code><?php echo esc_html( $row->stripe_sub_id ?: '--' ); ?></code></td>
                         <td>
@@ -513,6 +515,27 @@ class Noah_Admin {
             }
         }
         return $products;
+    }
+
+    /**
+     * Where a noah_members row came from, based on what grant() was called
+     * with: a real order_id means checkout on the site; no order but a real
+     * stripe_sub_id means Noah_Stripe_Import_Sync found them already
+     * subscribed in Stripe (e.g. migrated from PaySimple); neither means an
+     * admin manually toggled the "Active Member" checkbox on their profile.
+     */
+    private function render_member_source( object $row ): string {
+        if ( ! empty( $row->order_id ) ) {
+            $order = wc_get_order( (int) $row->order_id );
+            $label = sprintf( __( 'Website (Order #%d)', 'noah-protocol' ), (int) $row->order_id );
+            return $order
+                ? '<a href="' . esc_url( $order->get_edit_order_url() ) . '">' . esc_html( $label ) . '</a>'
+                : esc_html( $label );
+        }
+        if ( ! empty( $row->stripe_sub_id ) ) {
+            return '<span title="' . esc_attr__( 'Linked from an existing Stripe Subscription, not a site checkout', 'noah-protocol' ) . '">' . esc_html__( 'Stripe', 'noah-protocol' ) . '</span>';
+        }
+        return esc_html__( 'Manual (admin)', 'noah-protocol' );
     }
 
     // ---------------------------------------------------------------

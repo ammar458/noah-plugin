@@ -50,7 +50,7 @@ class Noah_Stripe_Import_Sync {
         }
         $synced = $this->sync();
         wp_safe_redirect( add_query_arg(
-            [ 'page' => 'wc-settings', 'tab' => 'noah_protocol', 'noah_tab' => 'stripe', 'noah_import_synced' => $synced ],
+            [ 'page' => 'noah-members', 'noah_import_synced' => $synced ],
             admin_url( 'admin.php' )
         ) );
         exit;

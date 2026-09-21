@@ -239,6 +239,21 @@ class Noah_Admin {
             </div>
 
             <div style="<?php echo $this->card_style( false ); ?>">
+                <h3 style="margin:0 0 8px;">&#128260; <?php esc_html_e( 'Sync members imported into Stripe', 'noah-protocol' ); ?></h3>
+                <p><?php esc_html_e( 'If customers were added directly in Stripe (e.g. migrated from PaySimple) rather than through checkout, this scans Stripe for customers with an active or trialing Subscription and links or creates their NOAH membership. Runs automatically every hour — use this to sync immediately after an import.', 'noah-protocol' ); ?></p>
+                <?php if ( isset( $_GET['noah_import_synced'] ) ) : ?>
+                    <p style="color:#1a7b2e;">
+                        <?php printf( esc_html__( 'Sync complete — %d member(s) linked or granted.', 'noah-protocol' ), absint( $_GET['noah_import_synced'] ) ); ?>
+                    </p>
+                <?php endif; ?>
+                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                    <input type="hidden" name="action" value="noah_run_import_sync">
+                    <?php wp_nonce_field( 'noah_run_import_sync' ); ?>
+                    <button type="submit" class="button button-primary"><?php esc_html_e( 'Sync members from Stripe now', 'noah-protocol' ); ?></button>
+                </form>
+            </div>
+
+            <div style="<?php echo $this->card_style( false ); ?>">
                 <h3 style="margin:0 0 8px;">&#129514; <?php esc_html_e( 'Step 6 — Test with Stripe CLI', 'noah-protocol' ); ?></h3>
                 <code style="display:block;background:#1e1e1e;color:#d4d4d4;padding:10px 14px;border-radius:6px;font-size:12px;">stripe listen --forward-to <?php echo esc_html( $webhook_url ); ?></code>
                 <p style="margin-top:10px;"><?php esc_html_e( 'Then trigger a test event:', 'noah-protocol' ); ?></p>

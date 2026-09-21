@@ -21,6 +21,12 @@ class Noah_Activation {
             wp_schedule_event( time(), 'daily', 'noah_daily_cleanup' );
         }
 
+        // Hourly scan for Stripe customers imported from PaySimple with an
+        // active/trialing Subscription but no matching NOAH membership yet.
+        if ( ! wp_next_scheduled( 'noah_stripe_customer_import_sync' ) ) {
+            wp_schedule_event( time(), 'hourly', 'noah_stripe_customer_import_sync' );
+        }
+
         flush_rewrite_rules();
     }
 }
